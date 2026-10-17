@@ -9,8 +9,8 @@ source /usr/share/yunohost/helpers
 
 # A safety backup taken before an upgrade (BACKUP_CORE_ONLY=1) leaves the user
 # data in place, and so does the "do_not_backup_data" setting. In both cases the
-# heavy database snapshot is skipped as well: YunoHost's own ynh_backup() only
-# knows how to skip things living under $data_dir, and our snapshot is written
+# heavy database snapshot is skipped as well: YunoHost's own ynh_backup helper
+# only knows how to skip things living under $data_dir, and our snapshot is written
 # to $YNH_APP_BACKUP_DIR instead.
 skip_user_data=false
 if [ "${BACKUP_CORE_ONLY:-0}" = "1" ]; then
