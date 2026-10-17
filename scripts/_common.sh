@@ -68,10 +68,10 @@ open_notebook_setup_source() {
 
 # Build the Python backend virtualenv and pre-download the tiktoken encoding.
 open_notebook_build_backend() {
-    pushd "$install_dir" >/dev/null
+    pushd "$install_dir" >/dev/null || return
     run_as_app "$install_dir/uv" python install "$PYTHON_VERSION"
     run_as_app "$install_dir/uv" sync --frozen --no-dev --python "$PYTHON_VERSION"
-    popd >/dev/null
+    popd >/dev/null || return
 
     # Pre-download the tiktoken encoding so a later offline server still works.
     if ! run_as_app env TIKTOKEN_CACHE_DIR="$data_dir/data/tiktoken-cache" \
@@ -84,7 +84,7 @@ open_notebook_build_backend() {
 # $path is "" for a root install, or "/foo" for a sub-path install.
 open_notebook_build_frontend() {
     export PATH="$path_with_nodejs:$PATH"
-    pushd "$install_dir/frontend" >/dev/null
+    pushd "$install_dir/frontend" >/dev/null || return
     run_as_app npm ci
     run_as_app env \
         NEXT_BASE_PATH="$path" \
@@ -92,7 +92,7 @@ open_notebook_build_frontend() {
         INTERNAL_API_URL="http://127.0.0.1:$port_api" \
         NODE_ENV=production \
         npm run build
-    popd >/dev/null
+    popd >/dev/null || return
 
     # Next.js standalone needs .next/static and public alongside server.js.
     mkdir -p "$install_dir/frontend/.next/standalone/.next"

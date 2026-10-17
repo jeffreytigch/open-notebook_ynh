@@ -25,7 +25,15 @@ jobs:
           done
 
       - name: ShellCheck
-        run: shellcheck --severity=warning --exclude=SC1090,SC1091,SC2034,SC2317 scripts/*
+        run: |
+          # SC1090/SC1091: helpers are sourced dynamically at runtime.
+          # SC2034/SC2317: YunoHost globals ($app, $domain, ...) look unused here.
+          # SC2154: variables like $install_dir/$data_dir/$port_api are provided
+          #         by YunoHost's core before the scripts run, so shellcheck
+          #         cannot see their assignment.
+          shellcheck --severity=warning \
+            --exclude=SC1090,SC1091,SC2034,SC2154,SC2317 \
+            scripts/*
 
   package_linter:
     name: YunoHost package_linter
