@@ -3,7 +3,6 @@
 version = "1.0"
 #
 # open-notebook config panel.
-# open-notebook config panel.
 # Values are stored in the app settings and re-rendered into
 # $install_dir/.env by scripts/config (see the set__ functions).
 
@@ -58,4 +57,4 @@ name = "open-notebook"
         type = "select"
         choices = [ "false", "true" ]
         default = "false"
-        help = "Downloads a headless browser the first time it is enabled. Improves crawling of JavaScript-heavy web pages."
+        help = "Installs a headless browser the first time it is enabled (a few hundred MB plus a few system libraries). Improves crawling of JavaScript-heavy web pages."

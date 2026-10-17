@@ -132,18 +132,36 @@ open_notebook_register_services() {
 }
 
 # Install one of the optional heavy runtimes (docling / crawl4ai) into the venv.
+#
+# The env-var toggle alone installs nothing: upstream's runtime probe
+# (open_notebook/utils/runtime_capabilities.py) also checks that the extra is
+# really importable and, for Crawl4AI, that a Chromium build exists under
+# $PLAYWRIGHT_BROWSERS_PATH. Upstream does this in scripts/docker-entrypoint.sh;
+# natively, the config panel calls this function instead.
 open_notebook_install_optional_runtime() {
     local extra="$1"
     local cc_version
+    local browsers_path="$data_dir/data/playwright"
+
+    mkdir -p "$browsers_path" "$data_dir/data/huggingface"
+    chown -R "$app:$app" "$data_dir/data"
+
     cc_version="$(run_as_app "$install_dir/.venv/bin/python" -c 'import importlib.metadata as m; print(m.version("content-core"))')"
     if ! run_as_app "$install_dir/uv" pip install --python "$install_dir/.venv/bin/python" "content-core[${extra}]==${cc_version}"; then
-        ynh_print_warn "Failed to install the optional '${extra}' dependency. Check the logs."
+        ynh_print_warn "Could not install the optional '${extra}' dependency. open-notebook keeps working without it."
         return
     fi
+
     if [ "$extra" == "crawl4ai" ]; then
-        run_as_app env PLAYWRIGHT_BROWSERS_PATH="$data_dir/data/playwright" \
+        # Chromium needs shared libraries that a minimal Debian install does not
+        # ship. Upstream runs `playwright install --with-deps` as root inside the
+        # container; the config panel already runs as root, so we do the same.
+        # Both steps are best effort: the app degrades gracefully without them.
+        "$install_dir/.venv/bin/playwright" install-deps chromium \
+            || ynh_print_warn "Could not install Chromium's system libraries; crawling JavaScript-heavy pages may fail. Retry with 'sudo $install_dir/.venv/bin/playwright install-deps chromium'."
+        run_as_app env PLAYWRIGHT_BROWSERS_PATH="$browsers_path" \
             "$install_dir/.venv/bin/playwright" install chromium \
-            || ynh_print_warn "Failed to download Chromium for Crawl4AI. It can be installed later with 'playwright install --with-deps chromium'."
+            || ynh_print_warn "Could not download Chromium; Crawl4AI will stay unavailable. Enable the toggle again to retry."
     fi
 }
 
