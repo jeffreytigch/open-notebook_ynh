@@ -126,7 +126,9 @@ open_notebook_load_settings() {
                max_upload_size worker_max_tasks chunk_size chunk_overlap \
                enable_docling enable_crawl4ai public_url; do
         printf -v "$key" '%s' "$(ynh_app_setting_get --key="$key")"
-        export "$key"
+        # ${key?} (rather than a bare "$key") silences shellcheck SC2163, which
+        # cannot tell that we are exporting the variable *named* by $key.
+        export "${key?}"
     done
 }
 
