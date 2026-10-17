@@ -295,6 +295,35 @@ config-panel values `max_upload_size=200`, `worker_max_tasks=5`,
 uninstalled`, with no leftovers (`/home/yunohost.app/open-notebook`,
 `/var/www/open-notebook` and all four units gone).
 
+### Final acceptance sweep on a clean instance
+
+The finished revision (`b8777e5`) was then re-verified from scratch on a second,
+clean YunoHost 12 box, with the app not yet installed, to prove the whole
+lifecycle is reproducible rather than an artefact of the long-lived test box.
+The sweep ran three stages:
+
+1. **`change_url`** `/open-notebook` → `/notebook` and back — the pages
+   `/login`, `/notebooks` and `/config` returned `200` at each new path, and the
+   rendered `failregex` followed the path (`/notebook/api/`, then back to
+   `/open-notebook/api/`), i.e. no stale URL is left in the fail2ban filter.
+2. **`remove --purge`** — both `/etc/fail2ban/jail.d/open-notebook.conf` and
+   `/etc/fail2ban/filter.d/open-notebook.conf` were removed, `install_dir` and
+   `data_dir` were gone, and `yunohost service status fail2ban` still reported
+   `configuration: valid` / `status: running` (the package never leaves
+   fail2ban in a broken state).
+3. **A fresh `yunohost app install`** of the final revision — exit 0, all four
+   units `active`, the API answered `200` **immediately** after install (the
+   readiness wait removed the post-install 502 window), the page matrix was
+   `/open-notebook` `200`, `/open-notebook/` `308`, `/login` `200`,
+   `/notebooks` `200`, `/config` `200`, and the fail2ban jail loaded with
+   `maxretry = 20` and a filter that matched the real `401` lines
+   (`fail2ban-regex … → Failregex: 3 total`).
+
+Result: **19 checks passed, 1 failed** — and the single "failure" is a typo in
+the *test script itself* (`lynoh.local-access.log` instead of
+`ynh.local-access.log`); the value the package rendered was correct
+(`logpath = /var/log/nginx/ynh.local-access.log`). No package defect.
+
 ## Bugs this proof found and fixed
 
 1. **Fatal nginx duplicate directive.** YunoHost's `proxy_params_with_auth`
