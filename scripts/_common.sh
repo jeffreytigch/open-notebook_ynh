@@ -216,11 +216,11 @@ open_notebook_restart_services() {
 }
 
 # Re-render the environment + nginx config after a config-panel change.
+# Re-render every generated file after a settings change and restart the
+# services. A config-panel value may be baked into a systemd unit (for example
+# worker_max_tasks is passed to the worker as --max-tasks), so this must reuse
+# open_notebook_configure rather than only re-rendering the .env and nginx.
 open_notebook_apply_config() {
-    open_notebook_load_settings
-    ynh_config_add --template=".env" --destination="$install_dir/.env"
-    chmod 600 "$install_dir/.env"
-    chown "$app:$app" "$install_dir/.env"
-    ynh_config_add_nginx
+    open_notebook_configure
     open_notebook_restart_services
 }
