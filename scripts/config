@@ -1,0 +1,56 @@
+#!/bin/bash
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+ynh_abort_if_errors
+
+#=================================================
+# CUSTOM SETTERS
+#=================================================
+
+# Each setter is called by the config panel when the matching question changes.
+# They re-render the environment file / nginx configuration and restart the
+# services so the new value takes effect.
+
+set__open_notebook_password() {
+    open_notebook_apply_config
+}
+
+set__max_upload_size() {
+    open_notebook_apply_config
+}
+
+set__worker_max_tasks() {
+    open_notebook_apply_config
+}
+
+set__chunk_size() {
+    open_notebook_apply_config
+}
+
+set__chunk_overlap() {
+    open_notebook_apply_config
+}
+
+set__enable_docling() {
+    if [ "$enable_docling" == "true" ]; then
+        ynh_print_info "Installing the optional Docling dependency (this can take a while)..."
+        open_notebook_install_optional_runtime "docling"
+    fi
+    open_notebook_apply_config
+}
+
+set__enable_crawl4ai() {
+    if [ "$enable_crawl4ai" == "true" ]; then
+        ynh_print_info "Installing the optional Crawl4AI dependency and browser (this can take a while)..."
+        open_notebook_install_optional_runtime "crawl4ai"
+    fi
+    open_notebook_apply_config
+}
+
+#=================================================
+# RUN
+#=================================================
+
+ynh_app_config_run "$1"

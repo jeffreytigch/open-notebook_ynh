@@ -1,0 +1,3 @@
+#!/bin/bash
+
+# open-notebook: build the backend and the frontend, then start the services.

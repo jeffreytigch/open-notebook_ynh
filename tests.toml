@@ -1,0 +1,13 @@
+#:schema https://raw.githubusercontent.com/YunoHost/apps/main/schemas/tests.v1.schema.json
+
+test_format = 1.0
+
+[default]
+    # The test scenarios are deduced from the manifest (install at the root of a
+    # domain / in a sub-path / with no URL is not relevant here, private install,
+    # multi-instance, backup/restore, change_url, upgrade).
+    #
+    # Once the first stable release is published, add upgrade tests from the
+    # previously released commit, for example:
+    #
+    # test_upgrade_from.<sha>.name = "Upgrade from <version>"

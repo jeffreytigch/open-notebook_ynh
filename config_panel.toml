@@ -1,0 +1,61 @@
+#:schema https://raw.githubusercontent.com/YunoHost/apps/main/schemas/config_panel.v1.schema.json
+#
+version = "1.0"
+#
+# open-notebook config panel.
+# open-notebook config panel.
+# Values are stored in the app settings and re-rendered into
+# $install_dir/.env by scripts/config (see the set__ functions).
+
+[main]
+name = "open-notebook"
+
+    [main.application]
+    name = "Application"
+
+        [main.application.open_notebook_password]
+        ask = "Application password"
+        type = "password"
+        help = "The shared password required by the open-notebook API, in addition to the YunoHost access control. Update it here if you change it in the app."
+
+        [main.application.max_upload_size]
+        ask = "Maximum upload size (MB)"
+        type = "number"
+        default = 100
+        help = "Largest file the API accepts. The nginx upload limit is adjusted to match. Increase for large audio/video sources."
+
+        [main.application.worker_max_tasks]
+        ask = "Background worker concurrency"
+        type = "select"
+        choices = [ "1", "2", "3", "5" ]
+        default = "1"
+        help = "How many background jobs (source processing, embeddings, podcasts) run at once. Higher values use more CPU/RAM."
+
+    [main.ingestion]
+    name = "Ingestion"
+
+        [main.ingestion.chunk_size]
+        ask = "Chunk size (tokens)"
+        type = "number"
+        default = 400
+        help = "Size of the text chunks produced when indexing sources. Existing sources are not re-chunked automatically."
+
+        [main.ingestion.chunk_overlap]
+        ask = "Chunk overlap (tokens)"
+        type = "number"
+        default = 60
+        help = "Overlap between consecutive chunks (about 15% of the chunk size is a good default)."
+
+        [main.ingestion.enable_docling]
+        ask = "Enable Docling (advanced document conversion)"
+        type = "select"
+        choices = [ "false", "true" ]
+        default = "false"
+        help = "Installs a heavy optional dependency the first time it is enabled. Improves handling of complex PDFs and office documents."
+
+        [main.ingestion.enable_crawl4ai]
+        ask = "Enable Crawl4AI (advanced web crawling)"
+        type = "select"
+        choices = [ "false", "true" ]
+        default = "false"
+        help = "Downloads a headless browser the first time it is enabled. Improves crawling of JavaScript-heavy web pages."

@@ -1,0 +1,11 @@
+--- a/frontend/src/lib/api/client.ts	2026-10-17 08:41:17
++++ b/frontend/src/lib/api/client.ts	2026-10-17 08:41:17
+@@ -63,7 +63,7 @@
+       // Clear auth and redirect to login
+       if (typeof window !== 'undefined') {
+         localStorage.removeItem('auth-storage')
+-        window.location.href = '/login'
++        window.location.href = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/login`
+       }
+     }
+     return Promise.reject(error)

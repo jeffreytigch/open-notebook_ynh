@@ -1,0 +1,11 @@
+--- a/frontend/src/lib/config.ts	2026-10-17 08:41:17
++++ b/frontend/src/lib/config.ts	2026-10-17 08:41:17
+@@ -70,7 +70,7 @@
+   let runtimeApiUrl: string | null = null
+   try {
+     if (isDev) console.log('🔧 [Config] Attempting to fetch runtime config from /config endpoint...')
+-    const runtimeResponse = await fetch('/config', {
++    const runtimeResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/config`, {
+       cache: 'no-store',
+     })
+     if (runtimeResponse.ok) {

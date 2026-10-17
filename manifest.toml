@@ -1,0 +1,108 @@
+#:schema https://raw.githubusercontent.com/YunoHost/apps/main/schemas/manifest.v2.schema.json
+
+packaging_format = 2
+
+id = "open-notebook"
+name = "open-notebook"
+description.en = "Self-hosted research assistant (NotebookLM alternative) to collect sources and build AI-assisted notebooks"
+description.fr = "Assistant de recherche auto-hébergé (alternative à NotebookLM) pour collecter des sources et créer des notebooks assistés par IA"
+
+version = "1.15.0~ynh1"
+
+maintainers = ["jtig"]
+
+[upstream]
+license = "MIT"
+code = "https://github.com/lfnovo/open-notebook"
+userdoc = "https://github.com/lfnovo/open-notebook/tree/main/docs"
+admindoc = "https://github.com/lfnovo/open-notebook/tree/main/docs"
+
+[integration]
+yunohost = ">= 12.1.17"
+helpers_version = "2.1"
+architectures = ["amd64", "arm64"]
+multi_instance = true
+# open-notebook has no notion of per-user YunoHost accounts: it is protected by a
+# single shared password (and by the SSOwat permission gating the whole app).
+# See docs/architecture-decisions.md ADR-004.
+ldap = false
+sso = false
+disk = "2G"
+ram.build = "2G"
+ram.runtime = "1G"
+
+[install]
+    [install.domain]
+    # this is a generic question - ask strings are automatically handled by YunoHost's core
+    type = "domain"
+
+    [install.path]
+    # this is a generic question - ask strings are automatically handled by YunoHost's core
+    type = "path"
+    default = "/open-notebook"
+
+    [install.init_main_permission]
+    # this is a generic question - ask strings are automatically handled by YunoHost's core
+    # This won't be saved as setting and will instead be used to initialize the SSOwat permission
+    # Default to "all_users": access requires being logged into the YunoHost portal.
+    type = "group"
+    default = "all_users"
+
+[resources]
+    [resources.sources]
+        [resources.sources.main]
+        url = "https://github.com/lfnovo/open-notebook/archive/refs/tags/v1.15.0.tar.gz"
+        sha256 = "544bcd0751f3985cf045c694c31587606c3756923350ca162d089b40aa449920"
+        format = "tar.gz"
+        autoupdate.strategy = "latest_github_tag"
+
+        # SurrealDB is bundled and pinned to the latest v2.x release (ADR-002).
+        # open-notebook's migrations and queries target SurrealDB v2; the upstream
+        # project pins surrealdb/surrealdb:v2. Do NOT autoupdate this to v3+.
+        # Refresh manually (version + url + sha256) when a new v2.x lands.
+        # Sources: https://github.com/surrealdb/surrealdb/releases
+        [resources.sources.surreal]
+        amd64.url = "https://github.com/surrealdb/surrealdb/releases/download/v2.7.0/surreal-v2.7.0.linux-amd64.tgz"
+        amd64.sha256 = "c5f53be46e287d15302d3467c629ad8df016c96fcf15451077633949dadb2028"
+        arm64.url = "https://github.com/surrealdb/surrealdb/releases/download/v2.7.0/surreal-v2.7.0.linux-arm64.tgz"
+        arm64.sha256 = "cebf189d06baed895bce02db64f42a136edfa440ad38a56725db4d410cbf317e"
+        format = "tar.gz"
+        in_subdir = false
+
+        # uv is the Python/project manager used to build the backend venv (ADR: install-time build).
+        # The archive contains a single uv-x86_64-unknown-linux-gnu/ (or aarch64) dir, flattened on extract.
+        [resources.sources.uv]
+        amd64.url = "https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-unknown-linux-gnu.tar.gz"
+        amd64.sha256 = "eadd9d27c134ab5ac1ffd4473b97a741407f3ea238288f03121fc4deddf90220"
+        arm64.url = "https://github.com/astral-sh/uv/releases/download/0.13.1/uv-aarch64-unknown-linux-gnu.tar.gz"
+        arm64.sha256 = "9041c73c99fdc5892cf128140beb354eca9231d502068cc36e6cb53a8e59ad14"
+        format = "tar.gz"
+        in_subdir = true
+
+    [resources.system_user]
+
+    [resources.install_dir]
+
+    [resources.data_dir]
+
+    [resources.permissions]
+        main.url = "/"
+        # Do NOT let SSOwat inject its own "Authorization: Basic ..." header: the app
+        # expects "Authorization: Bearer <password>". The client's own header is still
+        # forwarded to the backend (see conf/nginx.conf, proxy_params_with_auth).
+        main.auth_header = false
+
+    # main = frontend (reverse-proxied by nginx)
+    # api = FastAPI backend (127.0.0.1 only)
+    # surreal = SurrealDB (127.0.0.1 only)
+    [resources.ports]
+        [resources.ports.main]
+        [resources.ports.api]
+        [resources.ports.surreal]
+
+    [resources.apt]
+        # ffmpeg is required to process audio/video sources and generate podcasts.
+        packages = "ffmpeg, curl"
+
+    [resources.nodejs]
+        version = "22"

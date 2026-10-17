@@ -1,0 +1,29 @@
+#!/bin/bash
+
+source ../settings/scripts/_common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# BACKUP
+#=================================================
+
+ynh_print_info "Backing up open-notebook..."
+
+# RocksDB must not be copied while it is being written to, so stop every
+# component and let SurrealDB flush before snapshotting.
+open_notebook_stop_services
+
+# $install_dir/data is a symlink into $data_dir. Drop it so the data is not
+# archived twice (and so a restore does not create a nested copy).
+rm -f "$install_dir/data"
+
+# All persistent state lives in $data_dir: the SurrealDB (rocksdb) database,
+# uploads, podcast audio, the LangGraph sqlite checkpoints and the tiktoken cache.
+ynh_backup "$data_dir"
+
+# Put the install back in working order.
+ln -sfn "$data_dir/data" "$install_dir/data"
+chown -h "$app:$app" "$install_dir/data"
+open_notebook_start_services
+
+ynh_print_info "Backup of open-notebook completed"

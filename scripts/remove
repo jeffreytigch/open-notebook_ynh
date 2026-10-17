@@ -1,0 +1,43 @@
+#!/bin/bash
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# STOP SERVICES
+#=================================================
+
+ynh_script_progression "Stopping services..."
+open_notebook_stop_services
+
+#=================================================
+# UNREGISTER SERVICES
+#=================================================
+
+ynh_script_progression "Removing services..."
+for component in frontend worker api surreal; do
+    if ynh_hide_warnings yunohost service status "$app-$component" >/dev/null; then
+        yunohost service remove "$app-$component"
+    fi
+done
+
+#=================================================
+# REMOVE CONFIGURATIONS
+#=================================================
+
+ynh_script_progression "Removing configuration..."
+ynh_config_remove_logrotate
+for component in frontend worker api surreal; do
+    ynh_config_remove_systemd "$app-$component"
+done
+ynh_config_remove_nginx
+
+# The real data lives in $data_dir (removed by the core on --purge); drop the
+# ./data symlink that pointed into it.
+ynh_safe_rm "$install_dir/data"
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Removal of $app completed" --last

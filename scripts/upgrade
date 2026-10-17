@@ -1,0 +1,65 @@
+#!/bin/bash
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# STOP SERVICES
+#=================================================
+
+ynh_script_progression "Stopping services..."
+open_notebook_stop_services
+
+#=================================================
+# MIGRATE SETTINGS
+#=================================================
+
+ynh_script_progression "Ensuring settings are up to date..."
+
+ynh_app_setting_set_default --key=encryption_key --value="$(ynh_string_random --length=64)"
+ynh_app_setting_set_default --key=open_notebook_password --value="$(ynh_string_random --length=32)"
+ynh_app_setting_set_default --key=surreal_user --value="root"
+ynh_app_setting_set_default --key=surreal_password --value="$(ynh_string_random --length=32)"
+ynh_app_setting_set_default --key=max_upload_size --value="100"
+ynh_app_setting_set_default --key=worker_max_tasks --value="1"
+ynh_app_setting_set_default --key=chunk_size --value="400"
+ynh_app_setting_set_default --key=chunk_overlap --value="60"
+ynh_app_setting_set_default --key=enable_docling --value="false"
+ynh_app_setting_set_default --key=enable_crawl4ai --value="false"
+
+# The public URL follows the current domain/path.
+ynh_app_setting_set --key=public_url --value="https://${domain}${path}"
+
+#=================================================
+# UPDATE SOURCE AND REBUILD
+#=================================================
+
+ynh_script_progression "Updating open-notebook source..."
+open_notebook_setup_source full
+
+ynh_script_progression "Rebuilding the Python backend (uv)..."
+open_notebook_build_backend
+
+ynh_script_progression "Rebuilding the frontend (this may take several minutes)..."
+open_notebook_build_frontend
+
+#=================================================
+# RECONFIGURE
+#=================================================
+
+ynh_script_progression "Reconfiguring open-notebook..."
+open_notebook_configure
+open_notebook_register_services
+
+#=================================================
+# START SERVICES
+#=================================================
+
+ynh_script_progression "Starting services..."
+open_notebook_start_services
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Upgrade of $app completed" --last

@@ -1,0 +1,12 @@
+--- a/frontend/next.config.ts	2026-10-17 08:41:17
++++ b/frontend/next.config.ts	2026-10-17 08:41:17
+@@ -12,6 +12,9 @@
+   // Enable standalone output for optimized Docker deployment
+   output: "standalone",
+ 
++  // Support installation under a sub-path (YunoHost). Empty for a root install.
++  ...(process.env.NEXT_BASE_PATH ? { basePath: process.env.NEXT_BASE_PATH } : {}),
++
+   ...(allowedDevOrigins && allowedDevOrigins.length > 0 ? { allowedDevOrigins } : {}),
+ 
+   // Experimental features

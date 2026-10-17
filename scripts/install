@@ -1,0 +1,67 @@
+#!/bin/bash
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# STORE SETTINGS
+#=================================================
+
+ynh_script_progression "Storing installation settings..."
+
+# Random secrets, generated once and preserved across upgrades / restore.
+ynh_app_setting_set --key=encryption_key --value="$(ynh_string_random --length=64)"
+ynh_app_setting_set --key=open_notebook_password --value="$(ynh_string_random --length=32)"
+ynh_app_setting_set --key=surreal_user --value="root"
+ynh_app_setting_set --key=surreal_password --value="$(ynh_string_random --length=32)"
+
+# Behavioural settings (editable from the config panel).
+ynh_app_setting_set --key=max_upload_size --value="100"
+ynh_app_setting_set --key=worker_max_tasks --value="1"
+ynh_app_setting_set --key=chunk_size --value="400"
+ynh_app_setting_set --key=chunk_overlap --value="60"
+ynh_app_setting_set --key=enable_docling --value="false"
+ynh_app_setting_set --key=enable_crawl4ai --value="false"
+
+# Public URL (used by the app to build correct absolute links / callbacks).
+ynh_app_setting_set --key=public_url --value="https://${domain}${path}"
+
+#=================================================
+# SET UP SOURCE
+#=================================================
+
+ynh_script_progression "Retrieving open-notebook source..."
+open_notebook_setup_source
+
+#=================================================
+# BUILD
+#=================================================
+
+ynh_script_progression "Building the Python backend (uv)..."
+open_notebook_build_backend
+
+ynh_script_progression "Building the frontend (this may take several minutes)..."
+open_notebook_build_frontend
+
+#=================================================
+# CONFIGURE
+#=================================================
+
+ynh_script_progression "Configuring open-notebook..."
+open_notebook_configure
+
+#=================================================
+# REGISTER AND START SERVICES
+#=================================================
+
+ynh_script_progression "Registering services..."
+open_notebook_register_services
+
+ynh_script_progression "Starting services..."
+open_notebook_start_services
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Installation of $app completed" --last

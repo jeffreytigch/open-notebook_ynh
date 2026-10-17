@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Keep the GitHub Actions used by the lint workflow up to date.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

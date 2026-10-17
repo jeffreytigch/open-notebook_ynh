@@ -1,0 +1,128 @@
+name: Lint
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  shell:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Bash syntax check
+        run: |
+          for f in scripts/*; do
+            echo "== bash -n $f"
+            bash -n "$f"
+          done
+
+      - name: ShellCheck
+        run: shellcheck --severity=warning --exclude=SC1090,SC1091,SC2034,SC2317 scripts/*
+
+  package_linter:
+    name: YunoHost package_linter
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the app
+        uses: actions/checkout@v4
+        with:
+          path: open-notebook_ynh
+
+      - name: Checkout package_linter
+        uses: actions/checkout@v4
+        with:
+          repository: YunoHost/package_linter
+          path: package_linter
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install package_linter dependencies
+        run: |
+          if [ -f package_linter/requirements.txt ]; then
+            pip install -r package_linter/requirements.txt
+          fi
+
+      - name: Run package_linter
+        run: python3 package_linter/package_linter.py ./open-notebook_ynh
+
+  toml:
+    name: TOML / manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install parsers
+        run: pip install tomli jsonschema requests
+
+      - name: Parse every TOML file
+        run: |
+          python3 - <<'PY'
+          import glob, tomli
+          for path in sorted(glob.glob("**/*.toml", recursive=True)):
+              with open(path, "rb") as fh:
+                  tomli.load(fh)
+              print("OK", path)
+          PY
+
+      - name: Validate against YunoHost schemas
+        run: |
+          python3 - <<'PY'
+          import json, tomli, urllib.request
+
+          BASE = "https://raw.githubusercontent.com/YunoHost/apps/main/schemas"
+
+          def load_schema(name):
+              try:
+                  with urllib.request.urlopen(f"{BASE}/{name}", timeout=30) as r:
+                      return json.load(r)
+              except Exception as exc:  # network issue is not a packaging error
+                  print(f"! could not fetch {name}: {exc}")
+                  return None
+
+          try:
+              import jsonschema
+          except ImportError:
+              jsonschema = None
+
+          checks = [
+              ("manifest.toml", "manifest.v2.schema.json"),
+              ("tests.toml", "tests.v1.schema.json"),
+              ("config_panel.toml", "config_panel.v1.schema.json"),
+          ]
+
+          failed = False
+          for toml_file, schema_name in checks:
+              import os
+              if not os.path.exists(toml_file):
+                  print(f"! {toml_file} missing, skipping")
+                  continue
+              schema = load_schema(schema_name)
+              if schema is None or jsonschema is None:
+                  print(f"! skipping schema validation for {toml_file}")
+                  continue
+              with open(toml_file, "rb") as fh:
+                  data = tomli.load(fh)
+              try:
+                  jsonschema.validate(data, schema)
+                  print(f"OK {toml_file} valid against {schema_name}")
+              except jsonschema.ValidationError as exc:
+                  failed = True
+                  print(f"FAIL {toml_file}: {exc.message} (at {'/'.join(map(str, exc.path))})")
+
+          if failed:
+              raise SystemExit(1)
+          PY

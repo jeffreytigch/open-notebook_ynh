@@ -32,10 +32,16 @@ Which GitHub account/organization should own the new `open-notebook_ynh` repo?
 
 ## C. Verifications (Phase 1, on the test instance)
 
-### C1. Frontend standalone layout & env
-Confirm the exact `.next/standalone` file layout and the semantics/correctness of
-`PORT`, `HOSTNAME`, `API_URL`, `INTERNAL_API_URL` at **build vs run** time. Decide
-whether nginx routes `/api/` to the API directly (preferred) or through Next.
+### C1. Frontend standalone layout & env — MOSTLY RESOLVED
+Resolved by reading upstream v1.15.0 source: `output: "standalone"`, no
+`basePath`; API is proxied by a Next `rewrites()` to **build-time**
+`INTERNAL_API_URL` (`/api/:path*`), plus runtime SSE route handlers that read
+`INTERNAL_API_URL` at request time; the browser uses `axios` with
+`baseURL = ${apiUrl}/api`, where `apiUrl` comes from the runtime `/config` route
+(auto-detect hardcodes `:5055`, so `API_URL` **must** be set). Sub-path support
+requires a small patch (ADR-008). Remaining to verify on the test box: exact
+`.next/standalone` layout, and that `ynh_setup_source` applies
+`patches/<source_id>/*.patch` automatically.
 
 ### C2. Python provisioning
 Prefer `uv`-managed Python 3.12 (deterministic, network download at install) or

@@ -212,3 +212,60 @@ systemd unit names all derive from the app id.
 - Server admins must have the RAM/disk for each instance; document the cost in
   `doc/ADMIN.md`.
 - `package_check` will exercise the `install.multi` scenario.
+
+---
+
+## ADR-008 — Serving the frontend at a sub-path (basePath patch)
+
+**Context.** open-notebook's Next.js frontend is built for **root** deployment
+(the Docker image serves it at `:8502/`). Its `frontend/next.config.ts` sets
+`output: "standalone"` and an API rewrite, but **no `basePath`**. YunoHost apps
+are normally installed at a sub-path (e.g. `/open-notebook`), and
+`package_check` exercises the `install.subdir` scenario. Without a `basePath`,
+the built HTML/JS reference `/_next/...` absolutely and the app 404s when served
+under a sub-path.
+
+**Investigation (upstream v1.15.0).** The only browser-side paths that are
+root-absolute and would **not** be rewritten by `basePath` are:
+
+- `frontend/src/lib/config.ts` → `fetch('/config', …)`
+- `frontend/src/lib/api/client.ts` → `window.location.href = '/login'` (on HTTP 401)
+
+Everything else (`next/link`, `router.push`) is prefixed by Next.js
+automatically. API access goes through `axios` with
+`baseURL = \`${apiUrl}/api\`` where `apiUrl` is fetched at runtime from `/config`.
+
+**Decision.** Ship a minimal, documented patch
+`patches/main/frontend-basepath.patch`:
+
+1. `next.config.ts` — read `NEXT_BASE_PATH` and set `basePath` when non-empty.
+2. `src/lib/config.ts` — fetch `` `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/config` ``.
+3. `src/lib/api/client.ts` — redirect to `` `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/login` ``.
+
+Build the frontend with `NEXT_BASE_PATH=$path` and `NEXT_PUBLIC_BASE_PATH=$path`
+(empty string when installed at the domain root, so the app also works at `/`).
+Next.js then automatically prefixes `basePath` to the `/api/:path*` rewrite and
+serves the SSE route handlers under the sub-path too.
+
+**Runtime env that matters (see ADR-005):**
+- `API_URL` **must** be set to the public origin **including the path**
+  (e.g. `https://domain.tld/open-notebook`). The `/config` route's auto-detection
+  otherwise returns `…:5055`, which is not exposed.
+- `INTERNAL_API_URL` (`http://127.0.0.1:$port_api`) must be set **at build** (the
+  `rewrites()` destination is baked at build time) **and at runtime** (the
+  `_sse-proxy` route handler reads it at request time).
+
+**Consequences.**
+- The app works both at the domain root and at any sub-path; two instances can
+  coexist on one domain at different paths.
+- The patch is small and explainable, but **must be re-validated on every
+  upstream version bump**; if it fails to apply, the build fails loudly (good).
+- `change_url` that changes the *path* requires rebuilding the frontend
+  (consistent with B0 in `open-questions.md`).
+- Rejected alternative: install only at the domain root (`path = "/"`) with no
+  patch. Rejected because it fails `install.subdir` and blocks two instances on
+  one domain.
+
+**[verify C1]** `ynh_setup_source` applies `patches/<source_id>/*.patch`
+automatically (confirm on the test box); the standalone output layout and
+`PORT`/`HOSTNAME` handling.
