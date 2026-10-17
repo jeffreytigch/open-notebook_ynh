@@ -18,6 +18,7 @@ ynh_app_setting_set --key=public_url --value="https://${domain}${path}"
 
 # The environment file carries API_URL and the CORS origin, both of which
 # depend on the domain/path.
+open_notebook_load_settings
 ynh_config_add --template=".env" --destination="$install_dir/.env"
 chmod 600 "$install_dir/.env"
 chown "$app:$app" "$install_dir/.env"

@@ -111,8 +111,29 @@ open_notebook_build_frontend() {
     chown -R "$app:$app" "$install_dir/frontend"
 }
 
+# Load the settings injected into conf/.env as lowercase shell variables.
+#
+# The simple `__FOO__` templating resolves each token from the shell variable
+# `$foo`, and YunoHost builds a script's environment *before* running it. On a
+# fresh install the settings written by the script itself are therefore not yet
+# in the environment, which makes ynh_config_add fail on "__FOO__ wasn't
+# initialized". Pull every value back from the settings store first; on upgrade,
+# restore and change_url the core already exported them, so this is a harmless
+# re-read.
+open_notebook_load_settings() {
+    local key
+    for key in encryption_key open_notebook_password surreal_user surreal_password \
+               max_upload_size worker_max_tasks chunk_size chunk_overlap \
+               enable_docling enable_crawl4ai public_url; do
+        printf -v "$key" '%s' "$(ynh_app_setting_get --key="$key")"
+        export "$key"
+    done
+}
+
 # Render the .env file, the systemd units, the nginx configuration and logrotate.
 open_notebook_configure() {
+    open_notebook_load_settings
+
     ynh_config_add --template=".env" --destination="$install_dir/.env"
     chmod 600 "$install_dir/.env"
     chown "$app:$app" "$install_dir/.env"
@@ -196,6 +217,7 @@ open_notebook_restart_services() {
 
 # Re-render the environment + nginx config after a config-panel change.
 open_notebook_apply_config() {
+    open_notebook_load_settings
     ynh_config_add --template=".env" --destination="$install_dir/.env"
     chmod 600 "$install_dir/.env"
     chown "$app:$app" "$install_dir/.env"
