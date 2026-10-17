@@ -6,12 +6,15 @@ recherche auto-hébergé et open source (une alternative à « Google NotebookLM
 importez des documents, des pages web, de l'audio et de la vidéo, puis discutez
 avec eux, générez des notes, des analyses et des podcasts.
 
-> **État : implémenté, pas encore éprouvé.** Le paquet complet (manifest,
-> scripts, gabarits de configuration, panneau de configuration, CI) est écrit et
-> passe les vérifications statiques. Il **n'a pas encore été vérifié sur une
-> instance YunoHost réelle** et **n'est pas encore dans le catalogue YunoHost**.
-> Voir [`docs/open-questions.md`](docs/open-questions.md) pour ce qu'il reste à
-> valider.
+> **État : vérifié sur une instance YunoHost 12 réelle ; soumis au catalogue
+> YunoHost.** Le paquet s'installe, fonctionne et se met à jour nativement (sans
+> Docker) sur une vraie instance YunoHost 12, où l'installation, la sauvegarde,
+> la restauration, la mise à jour, `change_url`, `remove --purge`, le panneau de
+> configuration, la rotation des journaux, la prison fail2ban et un import de
+> fichier traité de bout en bout par le processus d'arrière-plan ont tous été
+> exercés. Les preuves sont consignées dans
+> [`docs/native-proof.md`](docs/native-proof.md) ; la soumission au catalogue est
+> suivie dans [`docs/catalog-submission.md`](docs/catalog-submission.md).
 
 ## Pourquoi ce paquet existe
 
@@ -59,10 +62,8 @@ séparer les usages.
 
 ## Installation (depuis ce dépôt)
 
-Une fois publié :
-
 ```bash
-yunohost app install https://github.com/<owner>/open-notebook_ynh
+yunohost app install https://github.com/jeffreytigch/open-notebook_ynh
 ```
 
 Pendant le développement, installez depuis une copie locale :
@@ -101,7 +102,10 @@ docs/                    Documentation de conception et de planification (voir c
 | [`docs/yunohost-packaging-reference.md`](docs/yunohost-packaging-reference.md) | Référence condensée du packaging YunoHost (v2 / helpers 2.1). |
 | [`docs/integration-matrix.md`](docs/integration-matrix.md) | Inventaire de toutes les fonctionnalités d'intégration YunoHost et de leur applicabilité. |
 | [`docs/architecture-decisions.md`](docs/architecture-decisions.md) | Décisions d'architecture (processus, données, sauvegarde, SSO, sous-chemins). |
-| [`docs/open-questions.md`](docs/open-questions.md) | Décisions prises et vérifications en attente. |
+| [`docs/open-questions.md`](docs/open-questions.md) | Décisions prises et résultats des vérifications (tous résolus). |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Procédure d'installation native manuelle utilisée pour valider la pile. |
+| [`docs/native-proof.md`](docs/native-proof.md) | Preuves consignées que la pile fonctionne nativement (sans Docker), et les bogues ainsi découverts. |
+| [`docs/catalog-submission.md`](docs/catalog-submission.md) | L'entrée `YunoHost/apps`, la demande de fusion et la vérification de la construction du catalogue. |
 
 ## Vérifications de qualité
 
@@ -110,9 +114,10 @@ fusion : [`package_linter`](https://github.com/YunoHost/package_linter)
 (l'analyseur statique officiel), `bash -n` + `shellcheck` sur les scripts, ainsi
 qu'une validation TOML/schéma. Les tests d'**intégration** officiels de YunoHost
 ([`package_check`](https://github.com/YunoHost/package_check)) s'exécutent sur la
-CI de YunoHost une fois l'application hébergée sur `YunoHost-Apps`. Les gabarits
-de demande de fusion incluent le déclencheur `!testme` pour la CI de
-développement.
+CI de YunoHost une fois l'application inscrite au catalogue — c'est ce qui
+produit le **niveau** (« level ») de l'application, suivi dans
+[`docs/catalog-submission.md`](docs/catalog-submission.md). Les gabarits de
+demande de fusion incluent le déclencheur `!testme` pour la CI de développement.
 
 ## Licence
 

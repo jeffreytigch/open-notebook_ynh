@@ -6,12 +6,14 @@ self-hosted research assistant (a "Google NotebookLM" alternative): import
 documents, web pages, audio and video, then chat with them, generate notes,
 insights and podcasts.
 
-> **Status: implemented, not yet battle-tested.** The complete package
-> (manifest, scripts, conf templates, config panel, CI) is written and passes
-> static checks. It has **not yet been verified on a live YunoHost instance**,
-> and it is **not yet in the YunoHost catalog**. See
-> [`docs/open-questions.md`](docs/open-questions.md) for what remains to be
-> verified.
+> **Status: verified on a live YunoHost 12 instance; submitted to the YunoHost
+> catalog.** The package installs, runs and upgrades natively (no Docker) on a
+> real YunoHost 12 box, where install / backup / restore / upgrade / `change_url`
+> / `remove --purge`, the config panel, log rotation, the fail2ban jail and an
+> end-to-end upload processed by the background worker were all exercised. The
+> recorded evidence is in [`docs/native-proof.md`](docs/native-proof.md); the
+> catalog submission is tracked in
+> [`docs/catalog-submission.md`](docs/catalog-submission.md).
 
 ## Why this package exists
 
@@ -52,10 +54,8 @@ instance if you need separation.
 
 ## Installation (from this repository)
 
-Once published:
-
 ```bash
-yunohost app install https://github.com/<owner>/open-notebook_ynh
+yunohost app install https://github.com/jeffreytigch/open-notebook_ynh
 ```
 
 During development, install from a local clone:
@@ -93,9 +93,10 @@ docs/                    Design & planning documentation (see below)
 | [`docs/yunohost-packaging-reference.md`](docs/yunohost-packaging-reference.md) | Condensed YunoHost packaging reference (v2 / helpers 2.1). |
 | [`docs/integration-matrix.md`](docs/integration-matrix.md) | Inventory of every YunoHost integration feature and its applicability. |
 | [`docs/architecture-decisions.md`](docs/architecture-decisions.md) | Architecture decision records (processes, data, backup, SSO, sub-paths). |
-| [`docs/open-questions.md`](docs/open-questions.md) | Resolved decisions and pending verifications. |
+| [`docs/open-questions.md`](docs/open-questions.md) | Decisions and verification results (all resolved). |
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Manual native install procedure used to validate the stack. |
 | [`docs/native-proof.md`](docs/native-proof.md) | Recorded evidence that the stack runs natively (no Docker), and the bugs that proof found. |
+| [`docs/catalog-submission.md`](docs/catalog-submission.md) | The `YunoHost/apps` entry, the pull request and how the catalog build is verified. |
 
 ## Quality checks
 
@@ -104,8 +105,10 @@ docs/                    Design & planning documentation (see below)
 static analyser), `bash -n` + `shellcheck` on the scripts, and TOML/schema
 validation. The official YunoHost **integration** tests
 ([`package_check`](https://github.com/YunoHost/package_check)) run on YunoHost's
-own CI once the app is hosted on `YunoHost-Apps`. Pull-request templates include
-the `!testme` trigger for the dev CI.
+own CI once the app is registered in the catalog — that is what produces the
+app's **level**, and it is tracked in
+[`docs/catalog-submission.md`](docs/catalog-submission.md). Pull-request
+templates include the `!testme` trigger for the dev CI.
 
 ## License
 
