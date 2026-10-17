@@ -94,6 +94,7 @@ docs/                    Design & planning documentation (see below)
 | [`docs/integration-matrix.md`](docs/integration-matrix.md) | Inventory of every YunoHost integration feature and its applicability. |
 | [`docs/architecture-decisions.md`](docs/architecture-decisions.md) | Architecture decision records (processes, data, backup, SSO, sub-paths). |
 | [`docs/open-questions.md`](docs/open-questions.md) | Resolved decisions and pending verifications. |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Manual native install procedure used to validate the stack. |
 
 ## Quality checks
 
