@@ -95,6 +95,7 @@ docs/                    Design & planning documentation (see below)
 | [`docs/architecture-decisions.md`](docs/architecture-decisions.md) | Architecture decision records (processes, data, backup, SSO, sub-paths). |
 | [`docs/open-questions.md`](docs/open-questions.md) | Resolved decisions and pending verifications. |
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Manual native install procedure used to validate the stack. |
+| [`docs/native-proof.md`](docs/native-proof.md) | Recorded evidence that the stack runs natively (no Docker), and the bugs that proof found. |
 
 ## Quality checks
 
