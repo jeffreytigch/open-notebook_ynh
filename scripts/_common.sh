@@ -147,6 +147,21 @@ open_notebook_configure() {
 
     ynh_config_add_nginx
     ynh_config_add_logrotate "/var/log/$app"
+
+    # Ban IPs that keep failing the app's API authentication.
+    #
+    # open-notebook has a single shared password and writes no authentication
+    # failure line of its own, but nginx returns (and logs) a 401 for every
+    # request carrying a missing or wrong Bearer token. That 401 is the signal
+    # this jail watches, so it is only reachable by someone who already passed
+    # SSOwat and then failed to authenticate against the app itself.
+    #
+    # Both arguments are passed explicitly rather than shipping conf/f2b_*.conf
+    # templates: the helper's template-only code path never sets $logpath and
+    # then runs `touch ""`, which aborts the script.
+    ynh_config_add_fail2ban \
+        --logpath="/var/log/nginx/$domain-access.log" \
+        --failregex='^<HOST> - .* "(GET|POST|PUT|PATCH|DELETE) __PATH__/api/[^"]*" 401'
 }
 
 open_notebook_register_services() {
@@ -203,6 +218,13 @@ open_notebook_start_services() {
     ynh_systemctl --service="$app-api" --action=start
     ynh_systemctl --service="$app-worker" --action=start
     ynh_systemctl --service="$app" --action=start
+
+    # The API applies its database migrations at startup, so it needs a few
+    # seconds before it binds its port. Wait for it to answer before returning
+    # so the app is not briefly 502-ing right after an install/restore/upgrade.
+    # Any HTTP reply (even a 401) proves the port is serving.
+    curl --silent --output /dev/null --retry 30 --retry-delay 1 --retry-connrefused \
+        "http://127.0.0.1:$port_api/api/config" || true
 }
 
 open_notebook_stop_services() {

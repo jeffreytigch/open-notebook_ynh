@@ -55,5 +55,7 @@ ynh_backup "/etc/systemd/system/$app-api.service"
 ynh_backup "/etc/systemd/system/$app-worker.service"
 ynh_backup "/etc/systemd/system/$app-surreal.service"
 ynh_backup "/etc/logrotate.d/$app"
+[[ -e "/etc/fail2ban/jail.d/$app.conf" ]] && ynh_backup "/etc/fail2ban/jail.d/$app.conf"
+[[ -e "/etc/fail2ban/filter.d/$app.conf" ]] && ynh_backup "/etc/fail2ban/filter.d/$app.conf"
 
 ynh_print_info "Backup of open-notebook completed"

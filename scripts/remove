@@ -31,6 +31,7 @@ for service in "$app" "$app-worker" "$app-api" "$app-surreal"; do
     ynh_config_remove_systemd "$service"
 done
 ynh_config_remove_nginx
+ynh_config_remove_fail2ban
 
 # The real data lives in $data_dir (removed by the core on --purge); drop the
 # ./data symlink that pointed into it.
