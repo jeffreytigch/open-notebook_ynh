@@ -12,7 +12,7 @@ jobs:
     name: Shell scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
@@ -32,12 +32,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the app
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: open-notebook_ynh
 
       - name: Checkout package_linter
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: YunoHost/package_linter
           path: package_linter
@@ -96,7 +96,7 @@ jobs:
     name: TOML / manifests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
