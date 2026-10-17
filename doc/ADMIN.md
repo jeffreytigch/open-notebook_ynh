@@ -9,6 +9,10 @@ permission can reach it. In addition, the open-notebook API is protected by a
 shared **application password** (also used to log in to the web interface).
 You can read or change that password from the app's **config panel**.
 
+The two layers are independent: if you allow **visitors** on the app's
+permission, YunoHost stops gating the URL and only the application password
+protects the app; if you restrict the permission to a group, both apply.
+
 Because open-notebook has no per-user accounts of its own, every allowed user
 shares the same workspace and the same password. If you need separate users,
 install a second instance.

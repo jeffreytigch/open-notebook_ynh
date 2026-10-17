@@ -10,6 +10,11 @@ protégée par un **mot de passe d'application** partagé (également utilisé p
 connecter à l'interface web). Vous pouvez consulter ou modifier ce mot de passe
 depuis le **panneau de configuration** de l'application.
 
+Les deux couches sont indépendantes : si vous autorisez les **visiteurs** sur la
+permission de l'application, YunoHost cesse de protéger l'URL et seul le mot de
+passe d'application protège l'application ; si vous restreignez la permission à
+un groupe, les deux s'appliquent.
+
 Comme open-notebook n'a pas de comptes utilisateurs propres, tous les
 utilisateurs autorisés partagent le même espace de travail et le même mot de
 passe. Si vous avez besoin d'utilisateurs séparés, installez une seconde

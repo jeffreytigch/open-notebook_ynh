@@ -324,6 +324,35 @@ the *test script itself* (`lynoh.local-access.log` instead of
 `ynh.local-access.log`); the value the package rendered was correct
 (`logpath = /var/log/nginx/ynh.local-access.log`). No package defect.
 
+### Install from the published repository URL (arm64)
+
+The last arm64 run removes the local checkout entirely and installs the app the
+way a user (or the catalog) would, straight from GitHub:
+
+```bash
+yunohost app install https://github.com/jeffreytigch/open-notebook_ynh \
+  -f -a "domain=ynh.local&path=/open-notebook&init_main_permission=all_users"
+```
+
+The core cloned the repository's default branch and ran the package's own
+`scripts/install`; no local path was involved (`-f` accepts the install without
+an interactive confirmation, `-a` supplies the answers). Result: **23 checks
+passed, 0 failed**:
+
+* `SUCCESS Installation completed`, version `1.15.0~ynh1`;
+* all four units — `open-notebook`, `-api`, `-worker`, `-surreal` — `active`
+  **and** `enabled`;
+* `GET 127.0.0.1:<port_api>/api/config` → `200`, i.e. the API is already serving
+  when the install finishes (no post-install 502 window);
+* page matrix: `/open-notebook` `200`, `/open-notebook/` `308` (the Next.js
+  trailing-slash redirect), `/login` `200`, `/notebooks` `200`, `/config` `200`;
+* unauthenticated `/notebooks` and `/api/notebooks` → `302` to the SSO portal;
+* `/api/notebooks` → `401` without a Bearer token, `200` with it;
+* the fail2ban jail is present, carries `maxretry = 20`, its failregex points at
+  `/open-notebook/api/`, and `fail2ban-client status open-notebook` confirms the
+  jail is loaded;
+* `/etc/logrotate.d/open-notebook` is in place.
+
 ## Bugs this proof found and fixed
 
 1. **Fatal nginx duplicate directive.** YunoHost's `proxy_params_with_auth`
