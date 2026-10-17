@@ -7,23 +7,40 @@ source /usr/share/yunohost/helpers
 # BACKUP
 #=================================================
 
+# A safety backup taken before an upgrade (BACKUP_CORE_ONLY=1) leaves the user
+# data in place, and so does the "do_not_backup_data" setting. In both cases the
+# heavy database snapshot is skipped as well: YunoHost's own ynh_backup() only
+# knows how to skip things living under $data_dir, and our snapshot is written
+# to $YNH_APP_BACKUP_DIR instead.
+skip_user_data=false
+if [ "${BACKUP_CORE_ONLY:-0}" = "1" ]; then
+    skip_user_data=true
+fi
+if [ "$(ynh_app_setting_get --key=do_not_backup_data 2>/dev/null || true)" = "1" ]; then
+    skip_user_data=true
+fi
+
 ynh_print_info "Backing up open-notebook..."
 
-if [ "${do_not_backup_data:-0}" = "1" ]; then
-    # Safety backup made by YunoHost before an upgrade: the data stays in place,
-    # only the configurations below are worth archiving.
-    ynh_print_info "Skipping user data (do_not_backup_data=1)"
+if [ "$skip_user_data" = "true" ]; then
+    ynh_print_info "Skipping user data (safety backup before upgrade, or do_not_backup_data is set)."
 else
     # The SurrealDB (RocksDB) files must not be copied while the database is
     # writing to them, so take a consistent snapshot with the services stopped.
-    # The snapshot is stored in $YNH_APP_BACKUP_DIR, which is automatically
-    # included in the backup (files placed there need not be declared).
+    # The snapshot goes to $YNH_APP_BACKUP_DIR, which is automatically included
+    # in the archive (files placed there need not be declared with ynh_backup).
     open_notebook_stop_services
 
-    rm -rf "$YNH_APP_BACKUP_DIR/surreal_data"
-    cp -a "$data_dir/surreal_data" "$YNH_APP_BACKUP_DIR/surreal_data"
+    snapshot_failed=0
+    rm -rf "$YNH_APP_BACKUP_DIR/surreal_data" || snapshot_failed=1
+    cp -a "$data_dir/surreal_data" "$YNH_APP_BACKUP_DIR/surreal_data" || snapshot_failed=1
 
+    # Always bring the services back up before possibly aborting.
     open_notebook_start_services
+
+    if [ "$snapshot_failed" -ne 0 ]; then
+        ynh_die "Could not snapshot the SurrealDB database. Aborting instead of writing a backup without the database."
+    fi
 
     # Uploads, podcast audio and the LangGraph sqlite checkpoints are safe to
     # copy while running. The uv cache/python, playwright browsers and the

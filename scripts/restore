@@ -10,11 +10,18 @@ source /usr/share/yunohost/helpers
 ynh_script_progression "Restoring open-notebook data..."
 
 # SurrealDB snapshot taken by scripts/backup (stored in $YNH_APP_BACKUP_DIR,
-# which the backup extracted automatically).
-rm -rf "$data_dir/surreal_data"
-cp -a "$YNH_APP_BACKUP_DIR/surreal_data" "$data_dir/surreal_data"
+# which the backup extracted automatically). It is absent from a safety backup
+# taken before an upgrade (and when "do_not_backup_data" is set); in that case
+# the existing database is kept as-is, exactly like the user data below.
+if [ -d "$YNH_APP_BACKUP_DIR/surreal_data" ]; then
+    rm -rf "$data_dir/surreal_data"
+    cp -a "$YNH_APP_BACKUP_DIR/surreal_data" "$data_dir/surreal_data"
+else
+    ynh_print_info "No SurrealDB snapshot in this backup: keeping the existing database."
+fi
 
 # Uploads, podcast audio and the LangGraph sqlite checkpoints.
+# ynh_restore itself skips $data_dir paths that are missing from the archive.
 ynh_restore "$data_dir/data"
 
 chown -R "$app:$app" "$data_dir"
