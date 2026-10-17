@@ -24,6 +24,14 @@ fi
 # ynh_restore itself skips $data_dir paths that are missing from the archive.
 ynh_restore "$data_dir/data"
 
+# ynh_restore applies YunoHost's "default permissions" to the restored path:
+# any target that is neither $install_dir nor $data_dir itself is forced to
+# mode 400. For a restored *directory* that makes it untraversable, and the app
+# then cannot reach its own data (the API crashes on ./data/sqlite-db). Restore
+# sane permissions: owner rwX everywhere (dirs get traversal), group nothing.
+chmod -R u+rwX,go-rwx "$data_dir/data"
+chmod 750 "$data_dir/data"
+
 chown -R "$app:$app" "$data_dir"
 
 #=================================================

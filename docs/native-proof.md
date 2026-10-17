@@ -139,6 +139,108 @@ in effect — and the 110 MB request proves the limit is enforced).
 `nginx -t` also passes for a **root** install rendering (`__PATH__` = `/`), for
 which the `#sub_path_only` line correctly stays a comment.
 
+## Verified end-to-end on a real YunoHost 12 instance
+
+A complete YunoHost 12 server was installed from scratch (official installer,
+non-interactive `-f -a`) on Debian 12 *bookworm*, **arm64**, followed by
+`yunohost tools postinstall -d ynh.local …`. Versions: YunoHost `12.1.41.2`,
+yunohost-admin `12.1.15`, ssowat `12.1.1`, moulinette `12.1.4`.
+
+The package was then installed straight from the local directory:
+
+```bash
+yunohost app install /root/open-notebook_ynh -f -n \
+  -a "domain=ynh.local&path=/open-notebook&init_main_permission=all_users"
+```
+
+→ **exit 0, "Installation of open-notebook completed"**. The package never
+invokes Docker.
+
+### Services
+
+| unit | `is-active` | `is-enabled` | `yunohost service status` |
+|---|---|---|---|
+| `open-notebook-surreal` | active | enabled | running |
+| `open-notebook-api` | active | enabled | running |
+| `open-notebook-worker` | active | enabled | running |
+| `open-notebook` (frontend) | active | enabled | running |
+
+All four are enabled, so they come back after a reboot. Logs land in
+`/var/log/open-notebook/{surreal,api,worker,frontend}.log`, and
+`/etc/logrotate.d/open-notebook` rotates them.
+
+### Backend reachability (bound to `127.0.0.1`)
+
+- SurrealDB: `GET /health` → `200`.
+- API: `GET /api/config` with `Authorization: Bearer <app password>` → `200`
+  `{"version":"1.15.0","dbStatus":"online"}`; missing or wrong bearer → `401`.
+  Migrations ran on first boot (*"Database is now at version 25"*).
+- `.env` and the four units render only from the app settings (data dir,
+  ports, keys, password) — see `conf/.env`.
+
+### Web access through nginx (SSO first, then the app password)
+
+`https://ynh.local/open-notebook` is gated by YunoHost's SSO: without a
+session it returns `302` to `/yunohost/sso?…`
+(`x-sso-wat: You've just been SSOed`), **even when a valid `Authorization:
+Bearer` app password is supplied** — the two-layer model of ADR-004. With a
+valid SSO session:
+
+| URL | status |
+|---|---|
+| `/open-notebook` | `301` (→ `/open-notebook/`) |
+| `/open-notebook/login` | `200` |
+| `/open-notebook/config` | `200` |
+| `/open-notebook/notebooks` | `200` |
+| `/open-notebook/api/notebooks` + Bearer | `200` |
+| `/open-notebook/api/notebooks` no/bad Bearer | `401` |
+
+The `location /open-notebook/` block has no trailing slash on `proxy_pass`, so
+the Next.js `basePath` is preserved (ADR-008).
+
+### Streaming (SSE) and large uploads
+
+- A temporary SSE emitter was pointed at the API port **without touching the
+  nginx config**; five events 0.7 s apart were delivered through
+  `https://ynh.local/open-notebook/api/…` with matching arrival times
+  (`…663.034 → …665.855`), i.e. the responses are **not buffered**
+  (`proxy_buffering off`). open-notebook's own SSE endpoints are
+  `POST /api/search/ask` and `/api/source_chat/…`
+  (`media_type="text/event-stream"`, `X-Accel-Buffering: no`).
+- A 10 MB `POST` through nginx returned the app's `404`, not nginx's `413`,
+  confirming `client_max_body_size` tracks `max_upload_size`.
+
+### Config panel
+
+`yunohost app config set` changes take effect live: the setting is persisted,
+`.env` is re-rendered, nginx's `client_max_body_size` and the worker unit's
+`--max-tasks` value follow, and the services restart. See bug 7 below.
+
+### Backup
+
+`yunohost backup create --apps open-notebook -n onb-test` → `SUCCESS`, a
+~3.8 MB archive holding the consistent RocksDB snapshot (`surreal_data/`:
+`*.sst`, `*.log`, `CURRENT`, `IDENTITY`), the whole data directory
+(`uploads/`, `podcasts/`, `sqlite-db/checkpoints.sqlite`, `tiktoken-cache/`),
+the nginx conf, the four unit files and `/etc/logrotate.d/open-notebook`.
+
+### Restore and data integrity round trip
+
+A sentinel notebook was created through the API before the backup, and a second
+one after it. `yunohost app remove open-notebook --purge` wiped the instance,
+then `yunohost backup restore onb-test --apps open-notebook --force` brought it
+back (*"Restoration completed"*). Afterwards the API listed **only the
+sentinel** notebook — the post-backup one was gone — proving a true round trip
+of the SurrealDB data. All settings were preserved (domain, path, and the
+config-panel values `max_upload_size=200`, `worker_max_tasks=5`,
+`chunk_size=512`).
+
+### Remove / purge
+
+`yunohost app remove open-notebook --purge` → `SUCCESS open-notebook
+uninstalled`, with no leftovers (`/home/yunohost.app/open-notebook`,
+`/var/www/open-notebook` and all four units gone).
+
 ## Bugs this proof found and fixed
 
 1. **Fatal nginx duplicate directive.** YunoHost's `proxy_params_with_auth`
@@ -159,10 +261,26 @@ which the `#sub_path_only` line correctly stays a comment.
    never sets (`do_not_backup_data` is a *setting*), and `scripts/restore`
    hard-failed when restoring a pre-upgrade safety backup that contains no
    database snapshot (commit `5816827`).
-
-## What still needs the live YunoHost instance
-
-Everything that depends on YunoHost itself: `yunohost app install`, the four
-units being managed by systemd, `yunohost service status`, the SSOwat
-permission, the webadmin config panel, logrotate, and the backup → restore /
-upgrade / change_url / remove lifecycles. See [`RUNBOOK.md`](RUNBOOK.md).
+5. **Wrong `ynh_setup_source` flag.** The real helpers 2.1 name the argument
+   `--source_id=`, not `--source=`; the install aborted at the SurrealDB step
+   (commit `eeabff3`).
+6. **Settings are not exported to the script shell.** `ynh_app_setting_set`
+   does not create a shell variable, and the core builds the script
+   environment *before* the script runs, so values written by `scripts/install`
+   were missing when templating `conf/.env`
+   (*"Variable $chunk_overlap wasn't initialized …"*). `open_notebook_load_settings`
+   now reads them back before rendering (commit `802935b`).
+7. **Config-panel setters did not persist, and units were not re-rendered.**
+   When a `set__<key>` function exists, the helper calls *only* that function,
+   so each setter must save the setting itself; and
+   `open_notebook_apply_config` only re-rendered `.env`/nginx, leaving the
+   worker's `--max-tasks` (baked into its unit) stale. Both fixed
+   (commit `39ea34e`).
+8. **A restored data directory was left untraversable.** `ynh_restore` applies
+   YunoHost's "default permissions" to its target, and anything that is neither
+   `$install_dir` nor `$data_dir` *itself* is forced to mode `400`. The restored
+   `$data_dir/data` directory therefore came back as `dr--------`, so the app
+   user could not descend into it and the API crash-looped on
+   `PermissionError: [Errno 13] './data/sqlite-db'` (the tiktoken prewarm failed
+   the same way). `scripts/restore` now normalises the permissions of the
+   restored data directory immediately afterwards.
