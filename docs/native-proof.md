@@ -401,6 +401,74 @@ such question: `yunohost/utils/form.py` turns `-a` into a plain dict and
 `prompt_or_validate_form()` only ever reads the options the manifest defines, so an
 unused prefilled key is ignored.
 
+### Two simultaneous instances (the official CI's `install.multi`)
+
+Because `manifest.toml` declares `multi_instance = true`, the official suite also
+installs the app twice at the same time. That configuration is verified live, with
+the exact arguments `package_check` passes — including the extra `is_public=1` and
+`init_main_permission=visitors`:
+
+```bash
+yunohost app install https://github.com/jeffreytigch/open-notebook_ynh -f \
+  -a "domain=ynh.local&path=/open-notebook&is_public=1&init_main_permission=visitors"
+yunohost app install https://github.com/jeffreytigch/open-notebook_ynh -f \
+  -a "domain=ynh.local&path=/notebook2&is_public=1&init_main_permission=visitors"
+```
+
+Result: **88 checks passed, 0 failed** for the two-instance sweep and **6 passed,
+0 failed** for the permission behaviour:
+
+* both installs returned `SUCCESS Installation completed`; `open-notebook` and
+  `open-notebook__2` each have their four units `active` **and** `enabled`;
+* the three ports are distinct per instance (instance 1: main 23658, api 28621,
+  surreal 20909; instance 2: main 16222, api 27563, surreal 34282);
+* each instance serves its own page matrix — `/notebook2/`, `/notebook2/login`,
+  `/notebook2/notebooks`, `/notebook2/config`, `/notebook2/api/notebooks` — with
+  the first stylesheet and the first JS chunk of its landing page returning `200`
+  (the exact `auto_test_assets` probe of `lib/curl_tests.py`);
+* isolation holds: a separate data dir, `.env`, fail2ban jail, log dir and exactly
+  two nginx confs on the domain, each jail's failregex scoped to its own prefix
+  (`/open-notebook/api/` vs `/notebook2/api/`), and instance 1 still healthy after
+  instance 2 was installed;
+* with `init_main_permission=visitors` (the mode the CI installs) the app is
+  reachable anonymously — no SSO redirect on `/` or `/notebooks` — while the API
+  still answers `401` without a token and `200` with the application password;
+  restoring the group-gated permission brings the `302` to the SSO portal back;
+* the extra `is_public=1` argument the CI always adds is harmless in practice too:
+  both installs accepted it although this manifest declares no such question.
+
+### amd64: the source pins are verified; the emulated box cannot be provisioned
+
+This package declares `architectures = ["amd64", "arm64"]`. The arm64 path is
+proven end to end above. For amd64 the only environment available here was a
+QEMU-emulated container (`docker run --platform linux/amd64`), and that box cannot
+run YunoHost at all — before any package code is reached:
+
+* `slapd` never binds: `daemon: bind(8) failed errno=98 (Address already in use)`,
+  with systemd reporting `Found left-over process … (slapd) in control group while
+  starting unit` and a restart counter of 36, so the `yunohost` package's
+  post-installation script fails and leaves it half-configured (`iF`);
+* netlink is incomplete under qemu-user:
+  `socket(AF_NETLINK, SOCK_RAW, NETLINK_NETFILTER)` returns `EPROTONOSUPPORT`
+  (93) inside the emulated box but succeeds on the native arm64 box, so `nft` cannot
+  even open its socket (`mnl.c:60: Unable to initialize Netlink socket: Protocol not
+  supported`) and YunoHost's post-install firewall step fails with
+  `ERROR nftables does not seems to be working on your setup`.
+  Two recovery attempts (kill the stray daemon + `dpkg --configure -a`; then a full
+  container restart + re-applying the container workarounds) failed identically.
+
+What *is* verified for amd64:
+
+* every per-arch source in `manifest.toml` was re-downloaded and sha256-checked —
+  the `main` v1.15.0 tarball, `surreal` `surreal-v2.7.0.linux-amd64.tgz` (25.0 MB)
+  and `uv` `uv-x86_64-unknown-linux-gnu.tar.gz` (16.0 MB);
+* the build and configure steps around those binaries are architecture-independent
+  (`uv sync --frozen`, `npm ci && npm run build`, the same systemd/nginx/fail2ban
+  templates), and the only arch-dependent inputs are the two pinned binaries above,
+  whose amd64 checksums are confirmed;
+* the official `package_check` runs on real amd64 hardware once the app is
+  registered in the catalog, so an amd64 install is exercised there.
+
 ## Bugs this proof found and fixed
 
 1. **Fatal nginx duplicate directive.** YunoHost's `proxy_params_with_auth`
