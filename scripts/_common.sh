@@ -46,8 +46,8 @@ open_notebook_setup_source() {
         ynh_setup_source --dest_dir="$install_dir"
     fi
     # Side binaries (uv, uvx, surreal) share $install_dir with the app sources.
-    ynh_setup_source --dest_dir="$install_dir" --source=uv
-    ynh_setup_source --dest_dir="$install_dir" --source=surreal
+    ynh_setup_source --dest_dir="$install_dir" --source_id=uv
+    ynh_setup_source --dest_dir="$install_dir" --source_id=surreal
 
     chmod +x "$install_dir/uv" "$install_dir/surreal"
     chmod +x "$install_dir/uvx" 2>/dev/null || true
