@@ -53,7 +53,44 @@ jobs:
           fi
 
       - name: Run package_linter
-        run: python3 package_linter/package_linter.py ./open-notebook_ynh
+        run: |
+          # The linter always reports critical/error findings about the YunoHost
+          # app catalog for an app that is not (yet) published there, and about
+          # the README not being produced by the readme_generator. Those cannot
+          # be fixed before the app is in the catalog, so they are tolerated
+          # here; every other finding fails the build.
+          python3 package_linter/package_linter.py ./open-notebook_ynh --json > linter.json
+          python3 - <<'PY'
+          import json
+
+          TOLERATED = {
+              "AppCatalog.is_in_catalog",
+              "AppCatalog.state_is_working",
+              "AppCatalog.has_category",
+              "AppCatalog.is_in_github_org",
+              "App.badges_in_readme",
+          }
+
+          with open("linter.json") as fh:
+              report = json.load(fh)
+
+          for level in ("critical", "error", "warning", "info"):
+              findings = report.get(level, [])
+              print(f"{level}: {findings or 'none'}")
+
+          blocking = [
+              finding
+              for level in ("critical", "error")
+              for finding in report.get(level, [])
+              if finding not in TOLERATED
+          ]
+          if blocking:
+              print("\nBlocking findings (see https://yunohost.org/packaging_apps):")
+              for finding in blocking:
+                  print(f"  - {finding}")
+              raise SystemExit(1)
+          print("\nNo blocking package_linter findings.")
+          PY
 
   toml:
     name: TOML / manifests

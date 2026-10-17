@@ -9,7 +9,7 @@ description.fr = "Assistant de recherche auto-hébergé (alternative à Notebook
 
 version = "1.15.0~ynh1"
 
-maintainers = ["jtig"]
+maintainers = ["jeffreytigch"]
 
 [upstream]
 license = "MIT"
