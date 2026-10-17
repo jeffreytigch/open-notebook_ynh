@@ -84,11 +84,19 @@ open_notebook_build_backend() {
 # $path is "" for a root install, or "/foo" for a sub-path install.
 open_notebook_build_frontend() {
     export PATH="$path_with_nodejs:$PATH"
+
+    # $path is "/" for a root install. Next.js wants an EMPTY basePath there,
+    # and the client-side patches would otherwise build "//login" / "//config".
+    local base_path="${path:-}"
+    if [ "$base_path" == "/" ]; then
+        base_path=""
+    fi
+
     pushd "$install_dir/frontend" >/dev/null || return
     run_as_app npm ci
     run_as_app env \
-        NEXT_BASE_PATH="$path" \
-        NEXT_PUBLIC_BASE_PATH="$path" \
+        NEXT_BASE_PATH="$base_path" \
+        NEXT_PUBLIC_BASE_PATH="$base_path" \
         INTERNAL_API_URL="http://127.0.0.1:$port_api" \
         NODE_ENV=production \
         npm run build
