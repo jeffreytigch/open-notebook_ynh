@@ -178,6 +178,17 @@ All four are enabled, so they come back after a reboot. Logs land in
 - `.env` and the four units render only from the app settings (data dir,
   ports, keys, password) — see `conf/.env`.
 
+### Reboot survival
+
+The box was restarted (`docker restart`). `systemctl is-system-running` went
+`initializing` → `running`, and all four units came back `active` + `enabled`.
+SurrealDB `/health` → `200` and the API `/api/config` (with bearer) → `200`
+without any manual step, and the public matrix below re-run unchanged. (On this
+test box the domain is `ynh.local`, which YunoHost deliberately does not resolve
+through dnsmasq — `.local` is meant for mDNS. The harness re-adds
+`127.0.0.1 ynh.local` to `/etc/hosts`, which YunoHost rewrites on boot; that is
+a quirk of the throwaway `.local` test domain, not of the package.)
+
 ### Web access through nginx (SSO first, then the app password)
 
 `https://ynh.local/open-notebook` is gated by YunoHost's SSO: without a
@@ -218,6 +229,16 @@ redirects the trailing-slash form once (see bug 9 below).
 `yunohost app config set` changes take effect live: the setting is persisted,
 `.env` is re-rendered, nginx's `client_max_body_size` and the worker unit's
 `--max-tasks` value follow, and the services restart. See bug 7 below.
+
+### Log rotation
+
+`/etc/logrotate.d/open-notebook` (rendered by `ynh_config_add_logrotate`) uses
+`size 100M`, `rotate 12`, `compress`, `copytruncate`, `missingok` and
+`notifempty` for `/var/log/open-notebook/*.log`. `copytruncate` matters because
+the units log with `StandardOutput=append:`, which keeps the file descriptor
+open. A forced `logrotate -f /etc/logrotate.d/open-notebook` rotated all four
+logs into `*.log.1` and truncated the live files; the API kept serving and
+kept writing to `api.log` afterwards.
 
 ### Backup
 
