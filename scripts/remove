@@ -15,9 +15,9 @@ open_notebook_stop_services
 #=================================================
 
 ynh_script_progression "Removing services..."
-for component in frontend worker api surreal; do
-    if ynh_hide_warnings yunohost service status "$app-$component" >/dev/null; then
-        yunohost service remove "$app-$component"
+for service in "$app" "$app-worker" "$app-api" "$app-surreal"; do
+    if ynh_hide_warnings yunohost service status "$service" >/dev/null; then
+        yunohost service remove "$service"
     fi
 done
 
@@ -27,8 +27,8 @@ done
 
 ynh_script_progression "Removing configuration..."
 ynh_config_remove_logrotate
-for component in frontend worker api surreal; do
-    ynh_config_remove_systemd "$app-$component"
+for service in "$app" "$app-worker" "$app-api" "$app-surreal"; do
+    ynh_config_remove_systemd "$service"
 done
 ynh_config_remove_nginx
 

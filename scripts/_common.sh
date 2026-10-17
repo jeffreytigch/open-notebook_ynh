@@ -15,8 +15,8 @@ SURREAL_MAJOR="v2"
 # Python interpreter used to build the backend virtualenv.
 PYTHON_VERSION="3.12"
 
-# The four native processes of open-notebook.
-OPEN_NOTEBOOK_COMPONENTS="surreal api worker frontend"
+# The four native processes of open-notebook. The user-facing frontend is the
+# package's main service ($app); the others are suffixed with their component.
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -96,6 +96,7 @@ open_notebook_build_frontend() {
 
     # Next.js standalone needs .next/static and public alongside server.js.
     mkdir -p "$install_dir/frontend/.next/standalone/.next"
+    rm -rf "$install_dir/frontend/.next/standalone/.next/static" "$install_dir/frontend/.next/standalone/public"
     cp -a "$install_dir/frontend/.next/static" "$install_dir/frontend/.next/standalone/.next/static"
     cp -a "$install_dir/frontend/public" "$install_dir/frontend/.next/standalone/public"
 
@@ -111,7 +112,7 @@ open_notebook_configure() {
     ynh_config_add_systemd --template="systemd-surreal.service" --service="$app-surreal"
     ynh_config_add_systemd --template="systemd-api.service" --service="$app-api"
     ynh_config_add_systemd --template="systemd-worker.service" --service="$app-worker"
-    ynh_config_add_systemd --template="systemd-frontend.service" --service="$app-frontend"
+    ynh_config_add_systemd --template="systemd-frontend.service" --service="$app"
 
     ynh_config_add_nginx
     ynh_config_add_logrotate "/var/log/$app"
@@ -127,7 +128,7 @@ open_notebook_register_services() {
     _register_service "$app-surreal" "SurrealDB database for open-notebook" "/var/log/$app/surreal.log"
     _register_service "$app-api" "open-notebook API" "/var/log/$app/api.log"
     _register_service "$app-worker" "open-notebook background worker" "/var/log/$app/worker.log"
-    _register_service "$app-frontend" "open-notebook frontend" "/var/log/$app/frontend.log"
+    _register_service "$app" "open-notebook frontend" "/var/log/$app/frontend.log"
 }
 
 # Install one of the optional heavy runtimes (docling / crawl4ai) into the venv.
@@ -152,12 +153,13 @@ open_notebook_start_services() {
     sleep 2
     ynh_systemctl --service="$app-api" --action=start
     ynh_systemctl --service="$app-worker" --action=start
-    ynh_systemctl --service="$app-frontend" --action=start
+    ynh_systemctl --service="$app" --action=start
 }
 
 open_notebook_stop_services() {
-    for component in frontend worker api surreal; do
-        ynh_systemctl --service="$app-$component" --action=stop --timeout=30 || true
+    # Reverse of the start order.
+    for service in "$app" "$app-worker" "$app-api" "$app-surreal"; do
+        ynh_systemctl --service="$service" --action=stop --timeout=30 || true
     done
 }
 
