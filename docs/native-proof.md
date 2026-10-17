@@ -353,6 +353,54 @@ passed, 0 failed**:
   jail is loaded;
 * `/etc/logrotate.d/open-notebook` is in place.
 
+### Install at the root path (`path = /`)
+
+The official YunoHost CI installs every web app at the **root** of a domain first
+(`install.root`, `path=/`); it then also tests a sub-path (`install.subdir`) and a
+second simultaneous instance (`install.multi`, because this package declares
+`multi_instance = true`). A root install exercises a different code path here:
+`open_notebook_build_frontend` normalises the literal `/` that YunoHost puts in
+`$path` to an empty `basePath`, and `conf/nginx.conf` renders a root `location` and
+a root-scoped fail2ban regex. It was therefore verified explicitly:
+
+```bash
+yunohost app install https://github.com/jeffreytigch/open-notebook_ynh \
+  -f -a "domain=ynh.local&path=/&init_main_permission=all_users"
+```
+
+Result: **22 checks passed, 1 failed** — the single failure was the checker itself
+(curl without `-L`: `/` answers `307` to `/login`, which the CI's pycurl follows
+because `FOLLOWLOCATION=True` before it compares the code to `200`):
+
+* `SUCCESS Installation completed`; all four units `active` **and** `enabled`;
+* `GET 127.0.0.1:<port_api>/api/config` → `200`;
+* page matrix at the domain root: `/` `307` → `/login` `200`, `/notebooks` `200`,
+  `/config` `200`, `/api/notebooks` `200` with a Bearer token;
+* unauthenticated `/notebooks` → `302` to the SSO portal;
+* the fail2ban jail renders **root-scoped**: `maxretry = 20`, `logpath =
+  /var/log/nginx/ynh.local-access.log`, and a failregex of `/api/` that explicitly
+  does *not* contain `/open-notebook/api/` — the regex is derived from the real
+  path, not hard-coded;
+* `fail2ban-client status open-notebook` confirms the jail is loaded;
+* `/etc/logrotate.d/open-notebook` and `/var/log/open-notebook` are in place.
+
+### What the official CI will run
+
+`YunoHost/package_check` (branch `main`) derives the test list from the manifest and
+`tests.toml` (`lib/parse_tests_toml.py`): `package_linter`, **`install.root`**,
+`install.subdir` (this is not a full-domain-only app), **`install.multi`** (because
+`multi_instance = true`), `backup_restore`, `upgrade` and `change_url` (web app). Its
+install args come from `lib/default_install_args.py` — notably `path=/<app id>`, so
+the sub-path default is `/open-notebook` — plus a forced `is_public=1` and
+`init_main_permission=visitors`; it then checks the URL with `lib/curl_tests.py`: an
+anonymous GET of the app root that must end in `200` with redirects followed,
+together with the first stylesheet and script of the landing page.
+
+That extra `is_public` argument is harmless even though this manifest declares no
+such question: `yunohost/utils/form.py` turns `-a` into a plain dict and
+`prompt_or_validate_form()` only ever reads the options the manifest defines, so an
+unused prefilled key is ignored.
+
 ## Bugs this proof found and fixed
 
 1. **Fatal nginx duplicate directive.** YunoHost's `proxy_params_with_auth`
