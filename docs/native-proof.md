@@ -188,15 +188,18 @@ valid SSO session:
 
 | URL | status |
 |---|---|
-| `/open-notebook` | `301` (→ `/open-notebook/`) |
+| `/open-notebook` | `200` |
+| `/open-notebook/` | `308` → `/open-notebook` → `200` (single hop) |
 | `/open-notebook/login` | `200` |
 | `/open-notebook/config` | `200` |
 | `/open-notebook/notebooks` | `200` |
 | `/open-notebook/api/notebooks` + Bearer | `200` |
 | `/open-notebook/api/notebooks` no/bad Bearer | `401` |
 
-The `location /open-notebook/` block has no trailing slash on `proxy_pass`, so
-the Next.js `basePath` is preserved (ADR-008).
+The `location /open-notebook` block has no trailing slash on `proxy_pass`, so
+the Next.js `basePath` is preserved (ADR-008). The location itself also carries
+no trailing slash: the frontend answers `/open-notebook` directly and only
+redirects the trailing-slash form once (see bug 9 below).
 
 ### Streaming (SSE) and large uploads
 
@@ -284,3 +287,14 @@ uninstalled`, with no leftovers (`/home/yunohost.app/open-notebook`,
    `PermissionError: [Errno 13] './data/sqlite-db'` (the tiktoken prewarm failed
    the same way). `scripts/restore` now normalises the permissions of the
    restored data directory immediately afterwards.
+9. **Infinite redirect loop on the application root.** `conf/nginx.conf` used
+   the usual `#sub_path_only rewrite ^__PATH__$ __PATH__/ permanent;` line,
+   which for a sub-path install appends a trailing slash (`/open-notebook/`).
+   The Next.js frontend is built with `trailingSlash: false`, so it answers
+   `308` back to `/open-notebook` — the two ping-ponged forever on the app root
+   (exactly the URL the YunoHost user portal tile links to). The rewrite was
+   removed and the frontend location matches `__PATH__` *without* a trailing
+   slash, so `/open-notebook` is served directly (`200`) and `/open-notebook/`
+   resolves in a single `308` hop. Re-verified through the real render pipeline
+   for both a sub-path (`location /open-notebook`) and a root install
+   (`location /` + `location /api/`, both accepted by `nginx -t`).
