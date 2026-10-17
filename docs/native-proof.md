@@ -240,6 +240,36 @@ open. A forced `logrotate -f /etc/logrotate.d/open-notebook` rotated all four
 logs into `*.log.1` and truncated the live files; the API kept serving and
 kept writing to `api.log` afterwards.
 
+### fail2ban
+
+open-notebook writes no authentication-failure line of its own (the API's
+`PasswordAuthMiddleware` only answers `401`), so the jail watches nginx's
+per-domain access log, which records that `401`:
+
+    /var/log/nginx/ynh.local-access.log
+
+`open_notebook_configure` renders two templates — `conf/f2b_jail.conf` into
+`/etc/fail2ban/jail.d/open-notebook.conf` and `conf/f2b_filter.conf` into
+`/etc/fail2ban/filter.d/open-notebook.conf` — then reloads fail2ban. The
+rendered filter is
+
+    failregex = ^<HOST> - .* "(GET|POST|PUT|PATCH|DELETE) /open-notebook/api/[^"]*" 401
+
+and `fail2ban-regex` matched the real `401` lines in that log (`Failregex: 3
+total`). `fail2ban-client status open-notebook` lists the jail with the correct
+file list (0 currently banned), and `yunohost service status fail2ban` stays
+`configuration: valid` / `status: running`, so the jail never breaks fail2ban —
+which would otherwise block every later app operation.
+
+`maxretry` is 20 rather than the 5 the `ynh_config_add_fail2ban` helper
+hard-codes: the frontend issues several API calls at once, so a browser holding
+an out-of-date password can produce a handful of `401`s in a single page load.
+
+Because the log path embeds `$domain` and the regex embeds the path, both
+templates are rendered here rather than through the helper, `scripts/change_url`
+re-runs `open_notebook_configure`, and `scripts/remove` calls
+`ynh_config_remove_fail2ban`.
+
 ### Backup
 
 `yunohost backup create --apps open-notebook -n onb-test` → `SUCCESS`, a
@@ -319,3 +349,11 @@ uninstalled`, with no leftovers (`/home/yunohost.app/open-notebook`,
    resolves in a single `308` hop. Re-verified through the real render pipeline
    for both a sub-path (`location /open-notebook`) and a root install
    (`location /` + `location /api/`, both accepted by `nginx -t`).
+10. **`__PATH__` was left literal inside the fail2ban filter.** Rendering the
+   jail through `ynh_config_add_fail2ban --failregex=...__PATH__...` produced a
+   filter whose pattern still contained `__PATH__`, so `fail2ban-regex`
+   reported `Failregex: 0 total`. `_ynh_replace_vars` only substitutes the
+   tokens it finds *in the template file*, never a token that appears inside a
+   value passed to a helper. The jail and filter are now rendered from
+   `conf/f2b_jail.conf` / `conf/f2b_filter.conf`, and the regex is built in the
+   script from `${path%/}` (empty for a root install, the sub path otherwise).

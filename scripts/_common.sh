@@ -151,17 +151,29 @@ open_notebook_configure() {
     # Ban IPs that keep failing the app's API authentication.
     #
     # open-notebook has a single shared password and writes no authentication
-    # failure line of its own, but nginx returns (and logs) a 401 for every
-    # request carrying a missing or wrong Bearer token. That 401 is the signal
-    # this jail watches, so it is only reachable by someone who already passed
-    # SSOwat and then failed to authenticate against the app itself.
+    # failure line of its own, so the only available signal is nginx's 401 for
+    # a request carrying a missing or wrong Bearer token — reachable only by
+    # someone who already passed SSOwat.
     #
-    # Both arguments are passed explicitly rather than shipping conf/f2b_*.conf
-    # templates: the helper's template-only code path never sets $logpath and
-    # then runs `touch ""`, which aborts the script.
-    ynh_config_add_fail2ban \
-        --logpath="/var/log/nginx/$domain-access.log" \
-        --failregex='^<HOST> - .* "(GET|POST|PUT|PATCH|DELETE) __PATH__/api/[^"]*" 401'
+    # The two confs are rendered here rather than through
+    # ynh_config_add_fail2ban because that helper always writes maxretry = 5,
+    # and because its template-only code path never initialises $logpath and
+    # then runs `touch ""`. The frontend fires several API calls at once, so a
+    # stale stored password can legitimately produce a handful of 401s in one
+    # page load; conf/f2b_jail.conf therefore raises maxretry to 20.
+    #
+    # ${path%/} is empty for a root install and is the sub path otherwise, so
+    # the regex reads /api/ or /open-notebook/api/ as appropriate. __PATH__
+    # cannot be used inside the value: _ynh_replace_vars only substitutes the
+    # tokens it finds in the template file itself.
+    local api_prefix="${path%/}"
+    logpath="/var/log/nginx/$domain-access.log"
+    failregex="^<HOST> - .* \"(GET|POST|PUT|PATCH|DELETE) ${api_prefix}/api/[^\"]*\" 401"
+    touch "$logpath"
+    ynh_config_add --template="f2b_jail.conf" --destination="/etc/fail2ban/jail.d/$app.conf"
+    ynh_config_add --template="f2b_filter.conf" --destination="/etc/fail2ban/filter.d/$app.conf"
+    ynh_systemctl --service=fail2ban --action=reload \
+        --wait_until="(Started|Reloaded) fail2ban.service" --log_path=systemd
 }
 
 open_notebook_register_services() {

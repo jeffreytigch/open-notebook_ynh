@@ -13,6 +13,11 @@ Because open-notebook has no per-user accounts of its own, every allowed user
 shares the same workspace and the same password. If you need separate users,
 install a second instance.
 
+Repeated failures of that password are rate-limited by a **fail2ban jail**: an
+IP that fails the app password 20 times in 10 minutes is temporarily blocked.
+The threshold is deliberately generous, so a browser holding an out-of-date
+password cannot lock a legitimate user out.
+
 ## Capabilities and dependencies
 
 open-notebook talks to AI providers, but **does not ship one**. Configure one

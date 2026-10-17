@@ -64,8 +64,11 @@ between stopping the DB in `scripts/backup` vs relying on the framework (ADR-003
 Confirm registering four `yunohost service add` units for one app is clean
 (ADR-001); fall back to a target/oneshot if not.
 
-### C7. fail2ban
-Is there a log line for failed auth we can match? If not, skip the jail.
+### C7. fail2ban — RESOLVED
+Yes: nginx logs a `401` for every API request that carries a missing or wrong
+Bearer token, on `/var/log/nginx/$domain-access.log`. The package therefore
+ships a jail on that line (`ynh_config_add_fail2ban`), validated against the
+real log with `fail2ban-regex`; it is reachable only after passing SSOwat.
 
 ### C8. `client_max_body_size` sync
 Make the config panel keep the nginx body-size limit and

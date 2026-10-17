@@ -26,7 +26,7 @@ Legend — **Status**: ✅ used · 🟡 partial · ⛔ not applicable · ❓ ope
 | 14 | HTTPS | ✅ | Provided by YunoHost automatically for the app domain/path. | App must be told to trust the proxy. |
 | 15 | Data dir (`data_dir`) | ✅ | Real `/data`: SurrealDB rocksdb, uploads, podcasts, sqlite. | Relocated from the app's default `./data` (ADR-003). |
 | 16 | Log rotation | ✅ | `ynh_config_add_logrotate`; each unit logs under `/var/log/$app/`. | Ensure all four services log there. |
-| 17 | fail2ban | 🟡 | Add a jail only if a usable log/failregex exists (e.g. app auth failures). | App logs auth failures? verify; otherwise skip. |
+| 17 | fail2ban | ✅ | Jail on `/var/log/nginx/$domain-access.log` matching `401` on `__PATH__/api/`; `ynh_config_add_fail2ban` on configure, `ynh_config_remove_fail2ban` on remove, both confs backed up. | The app's own password failures surface as nginx `401`s (the shared password means no per-user log line). Reachable only after passing SSOwat. |
 | 18 | Config panel (`config_panel.toml`) | ✅ | Expose: app password, upload size limit, worker concurrency, chunk size, opt-in Docling/Crawl4AI. | ADR-006. |
 | 19 | Multi-instance | ✅ | `multi_instance = true`; all ports/dirs/services are `$app`-scoped (ADR-007). | Very resource-heavy per instance. |
 | 20 | `ynh_config_add` / templating | ✅ | `.env`, the 4 systemd units and nginx conf rendered from `conf/`. | Track checksums so upgrades preserve admin edits. |
@@ -49,9 +49,10 @@ Legend — **Status**: ✅ used · 🟡 partial · ⛔ not applicable · ❓ ope
 
 - **Fully used:** install/remove/upgrade, backup/restore, change_url, systemd
   services, nginx + HTTPS, permissions/portal tile, data_dir, log rotation,
-  config panel, autoupdate, catalog publication, CI/lint, docs + French.
+  fail2ban, config panel, autoupdate, catalog publication, CI/lint, docs +
+  French.
 - **Partially applicable / caveated:** SSO (two-layer: gating + app password;
-  no auto-login), fail2ban (if usable logs exist), actions.
+  no auto-login), actions.
 - **Not applicable:** LDAP mapping, PHP/MySQL/Postgres resources, email, SSH,
   app-side cron.
 

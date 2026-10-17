@@ -16,12 +16,10 @@ ynh_config_change_url_nginx
 # Keep the recorded public URL in sync.
 ynh_app_setting_set --key=public_url --value="https://${domain}${path}"
 
-# The environment file carries API_URL and the CORS origin, both of which
-# depend on the domain/path.
-open_notebook_load_settings
-ynh_config_add --template=".env" --destination="$install_dir/.env"
-chmod 600 "$install_dir/.env"
-chown "$app:$app" "$install_dir/.env"
+# Re-render every config that depends on the domain/path: the .env (API_URL and
+# the CORS origin), the systemd units, nginx, logrotate and the fail2ban jail
+# (whose logpath embeds $domain, so a domain change must move it too).
+open_notebook_configure
 
 # The base path is baked into the frontend build, so rebuild it only when the
 # path itself changed (a domain-only change needs no rebuild).

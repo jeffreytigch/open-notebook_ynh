@@ -15,6 +15,11 @@ utilisateurs autorisés partagent le même espace de travail et le même mot de
 passe. Si vous avez besoin d'utilisateurs séparés, installez une seconde
 instance.
 
+Les échecs répétés de ce mot de passe sont limités par une **prison fail2ban** :
+une IP qui échoue 20 fois en 10 minutes est temporairement bloquée. Le seuil est
+volontairement généreux, afin qu'un navigateur conservant un mot de passe obsolète
+ne puisse pas bloquer un utilisateur légitime.
+
 ## Capacités et dépendances
 
 open-notebook dialogue avec des fournisseurs d'IA, mais **n'en fournit aucun**.
