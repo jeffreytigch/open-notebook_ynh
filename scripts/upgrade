@@ -50,6 +50,7 @@ open_notebook_build_frontend
 ynh_script_progression "Reconfiguring open-notebook..."
 open_notebook_configure
 open_notebook_register_services
+open_notebook_set_logo
 
 #=================================================
 # START SERVICES

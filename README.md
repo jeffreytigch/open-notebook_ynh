@@ -48,9 +48,11 @@ directory and is included in YunoHost backups.
 ## Access control
 
 Access is gated by the YunoHost permission system, **and** the app keeps its own
-shared password (readable/changed from the config panel). open-notebook has no
-per-user accounts, so all allowed users share one workspace. Install a second
-instance if you need separation.
+shared password. The generated password is shown in the post-install notification
+and stays readable on the app's **Documentation** tab; it can be changed from the
+**Configuration** tab (where it is masked). open-notebook has no per-user
+accounts, so all allowed users share one workspace. Install a second instance if
+you need separation.
 
 ## Installation (from this repository)
 

@@ -7,7 +7,15 @@ podcasts.
 Access is controlled by YunoHost: only members of the group allowed on the app's
 permission can reach it. In addition, the open-notebook API is protected by a
 shared **application password** (also used to log in to the web interface).
-You can read or change that password from the app's **config panel**.
+
+The current application password is:
+
+    __OPEN_NOTEBOOK_PASSWORD__
+
+open-notebook has no accounts of its own, so the user name is not checked. Change
+the password from the app's **Configuration** tab in the YunoHost admin interface
+(the value is masked there: the field above is the readable copy). Users need it
+to log in to the app itself, on top of their YunoHost account.
 
 The two layers are independent: if you allow **visitors** on the app's
 permission, YunoHost stops gating the URL and only the application password

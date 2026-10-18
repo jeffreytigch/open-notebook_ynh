@@ -531,3 +531,54 @@ What *is* verified for amd64:
    value passed to a helper. The jail and filter are now rendered from
    `conf/f2b_jail.conf` / `conf/f2b_filter.conf`, and the regex is built in the
    script from `${path%/}` (empty for a root install, the sub path otherwise).
+11. **The app tile had no icon** (reported by the first user who installed the
+    published package on their own server: *"The icon is missing from the
+    Yunohost home screen/app switcher"*). YunoHost resolves a tile logo from the
+    `logo_hash` of the app's permission, or from the app's catalog entry — and
+    nothing in the package format can supply one. `APP_FILES_TO_COPY` is only
+    `manifest.json`, `manifest.toml`, `config_panel.toml`, `scripts/`, `conf/`,
+    `hooks/`, `doc/` (a `logo.png` at the package root is ignored, and
+    `example_ynh` ships none), and the `[resources.permissions]` resource has no
+    logo property. Installs made from a repository URL — the only path available
+    before the catalog entry is merged — therefore had `logo: None` and a blank
+    tile. Reproduced and fixed on the test box:
+
+    ```console
+    # before:  yunohost app list -f        -> logo: None
+    yunohost user permission update open-notebook.main --logo /tmp/catalog-logo.png
+    # after:   yunohost user permission info open-notebook.main
+    #            logo_hash: abaf18756b34255a964a210311736c62e47b5b553fa13c67a32cd12e4e228aa5
+    #          yunohost app list -f        -> logo: abaf1875…
+    #          /etc/yunohost/portal/ynh.local.json -> "logo": "/yunohost/sso/applogos/abaf1875….png"
+    #          curl -sk https://ynh.local/yunohost/sso/applogos/abaf1875….png
+    #            -> 200, image/png, 3747 bytes, byte-identical to the source (cmp)
+    ```
+
+    The artwork (256×256) is now shipped as `conf/logo.png` — a directory that
+    *is* copied — and `open_notebook_set_logo()` registers it on the main
+    permission from `scripts/install`, `scripts/upgrade` and `scripts/restore`
+    (see ADR-009). Re-verified with a fresh install of the fixed revision: the
+    file lands in `/etc/yunohost/apps/<app>/conf/logo.png`, the permission gets
+    its `logo_hash`, the portal entry and the PNG URL are correct, and an
+    instance created from the same revision is fixed too.
+12. **The generated application password was impossible to read** (reported by
+    the same user: *"The app password was set, but was incorrect. I had to set a
+    new app password in the admin panel, which then worked."*). The plumbing was
+    never the problem: `open_notebook_password` is byte-identical to
+    `OPEN_NOTEBOOK_PASSWORD=` in `<install_dir>/.env`, and on a fresh install the
+    API accepts it — `GET /api/notebooks`, `/api/models`, `/api/credentials`,
+    `/api/sources` all return `200` with `Authorization: Bearer <password>` and
+    `401` with a wrong or missing one (`/api/auth/status` →
+    `{"auth_enabled": true}`). `/api/config` is deliberately public: it answers
+    `200` either way, so it must **not** be used for such a check.
+    The defect was discoverability: `config_panel.toml` declares the password as
+    `type = "password"`, so the webadmin renders a masked `input` with no reveal
+    control (`yunohost app config get` even prints `**************`), while
+    `doc/ADMIN.md` and `doc/POST_INSTALL.md` told the admin to read it *from the
+    config panel*. The password is now interpolated from the app settings into
+    the post-install notification and into the app's documentation, which
+    YunoHost hydrates itself (`_hydrate_app_template`): after a fresh install the
+    generated password appears in `manifest.doc.ADMIN.en` **and** `.fr` and in
+    `manifest.notifications.POST_INSTALL.main.en`. `scripts/install` prints where
+    to find it but never echoes the secret into the operation log, and the
+    panel's `help` states that the field is masked (see ADR-010).

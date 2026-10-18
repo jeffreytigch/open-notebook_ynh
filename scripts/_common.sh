@@ -189,6 +189,28 @@ open_notebook_register_services() {
     _register_service "$app" "open-notebook frontend" "/var/log/$app/frontend.log"
 }
 
+# Give the app a tile logo on the user portal and in the admin app list.
+#
+# YunoHost resolves an app tile logo from the `logo_hash` setting of the app's
+# permission, or from the catalog entry of the app. Installs done straight from
+# a repository URL (as documented in the README) have no catalog entry yet, and
+# no core mechanism ships a logo from the package: `APP_FILES_TO_COPY` only
+# copies conf/scripts/doc/manifest*, and the permissions resource cannot
+# declare a logo. So we register conf/logo.png (256x256 PNG) ourselves on the
+# main permission; the core stores it under /usr/share/yunohost/applogos/ and
+# points the tile to it. Re-applied on install, upgrade and restore so that
+# instances installed by an older revision also get the logo.
+open_notebook_set_logo() {
+    local logo_path
+    for logo_path in "$YNH_APP_BASEDIR/conf/logo.png" "/etc/yunohost/apps/$app/conf/logo.png"; do
+        if [[ -f "$logo_path" ]]; then
+            yunohost user permission update "$app.main" --logo "$logo_path"
+            return
+        fi
+    done
+    ynh_print_warn "conf/logo.png not found: the app tile will stay without a logo."
+}
+
 # Install one of the optional heavy runtimes (docling / crawl4ai) into the venv.
 #
 # The env-var toggle alone installs nothing: upstream's runtime probe

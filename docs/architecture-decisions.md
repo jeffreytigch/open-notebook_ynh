@@ -269,3 +269,105 @@ serves the SSE route handlers under the sub-path too.
 **[verify C1]** `ynh_setup_source` applies `patches/<source_id>/*.patch`
 automatically (confirm on the test box); the standalone output layout and
 `PORT`/`HOSTNAME` handling.
+
+---
+
+## ADR-009 — The app tile logo comes from the permission, not from the package
+
+**Context.** A first user installed the package on their own server and
+reported *"the icon is missing from the YunoHost home screen / app switcher"*.
+Investigation on YunoHost 12.1.41:
+
+- the user portal and the admin app list resolve a tile logo **only** from a
+  `logo_hash` attached to the app's permission, or from the `logo_hash` of the
+  app's entry in the community catalog (`utils/app_utils.py`, `app.py`);
+- `logo_hash` is only ever set by `user_permission_update(…, logo=<PNG>)`,
+  which stores the file as `/usr/share/yunohost/applogos/<sha256>.png`;
+- **nothing in the package format can supply it**: `APP_FILES_TO_COPY` copies
+  only `manifest.toml`, `config_panel.toml`, `scripts/`, `conf/`, `hooks/` and
+  `doc/` (a `logo.png` at the package root is simply ignored — `example_ynh`
+  has none either), and the `[resources.permissions]` resource has no logo
+  property (`PermissionsResource.default_perm_properties`);
+- the catalog route works only *after* the app is merged into `YunoHost/apps`
+  (`app.py` falls back to `apps_catalog[app_id]["logo_hash"]`).
+
+So an install straight from a repository URL — the path our README documents,
+and the only one available until the catalog PR is merged — has no logo at all.
+On the test box `yunohost app list -f` reported `logo: None` for both
+instances, which is exactly the blank tile the user saw.
+
+**Decision.** Ship the 256×256 PNG (the same artwork as the catalog entry) as
+`conf/logo.png` — a directory that *is* copied — and register it on the main
+permission ourselves:
+
+```bash
+yunohost user permission update "$app.main" --logo "$logo_path"
+```
+
+via `open_notebook_set_logo()`, called from `scripts/install`,
+`scripts/upgrade` and `scripts/restore` (so instances installed by an earlier
+revision are fixed by a normal upgrade). It looks for the PNG in
+`$YNH_APP_BASEDIR/conf/` first (the extracted package during install/restore)
+and falls back to `/etc/yunohost/apps/$app/conf/` (the installed copy).
+
+**Consequences.**
+- The logo is set per instance, at install time, and needs no catalog entry; the
+  symmetric catalog logo hash is identical, so once the app is in the catalog
+  nothing changes for existing instances.
+- `yunohost user permission update` is a CLI call, not a helper: `ynh_permission_update`
+  (helpers 2.1) can only `--add`/`--remove` groups. The core requires the file to
+  be a real PNG (magic `\x89PNG\r\n\x1a\n`), and the call also regenerates the
+  per-domain portal data (`/etc/yunohost/portal/<domain>.json`) by itself.
+- The logo is *not* versioned per instance: a later change of the artwork is
+  applied by the next upgrade/restore.
+- Rejected: `cp conf/logo.png /usr/share/yunohost/applogos/<app_id>.png`. That
+  filename trick is only honoured by the admin app list (`app.py` returns the
+  app id as its logo); the portal keeps using `logo_hash`, so it would fix half
+  the symptom and depend on an undocumented path.
+
+---
+
+## ADR-010 — Surfacing the generated application password
+
+**Context.** The same user reported *"the app password was set, but was
+incorrect; I had to set a new app password in the admin panel, which then
+worked."* Reproducing on the test box showed the password plumbing itself is
+sound — `open_notebook_password` is byte-identical to `OPEN_NOTEBOOK_PASSWORD`
+in `<install_dir>/.env`, and that value authenticates against the API for both
+instances. The real defect is discoverability:
+
+- `config_panel.toml` declares the password as `type = "password"`, and the
+  webadmin renders it as a masked `<input type="password">` (placeholder
+  `••••••••••••`) with no reveal control — the core exposes the real value only
+  in `yunohost app config get --full` / the API payload, which the panel's
+  JavaScript never unmasks;
+- `yunohost app config get` without `--full` prints `**************`;
+- `doc/ADMIN.md` and `doc/POST_INSTALL.md` nevertheless told the user to read
+  the password *from the config panel*, which is impossible.
+
+**Decision.** Surface the password from the app settings, which YunoHost
+already interpolates into `doc/`, and stop pointing at the config panel:
+
+- reference `__OPEN_NOTEBOOK_PASSWORD__` in `doc/POST_INSTALL.md` (the
+  post-install notification) and in `doc/ADMIN.md` / `doc/ADMIN_fr.md` (the
+  app's *Documentation* tab, always current);
+- `_hydrate_app_template()` replaces `__SETTING_NAME__` tokens with
+  `str(settings[token.strip("_").lower()])` when building both the docs and the
+  notifications, so no extra machinery is needed;
+- the install script prints a `ynh_print_info` explaining where the password
+  can be read and changed, but deliberately does **not** echo the secret into
+  the operation log (people paste those logs into bug reports);
+- the config panel keeps the password editable (rotation) and its `help` now
+  states that the field is masked and that the readable copy is on the
+  Documentation tab.
+
+**Consequences.**
+- The password is readable by the YunoHost admin at any time without a
+  rebuild, and survives password rotation.
+- The value ends up in the app's documentation, which is admin-only — the same
+  audience that could already read it in the panel payload.
+- Users still share one notebook space (ADR-004), and the auth layer is
+  unchanged: an empty `OPEN_NOTEBOOK_PASSWORD` disables upstream auth entirely,
+  so the panel must never be allowed to store an empty value; the option stays
+  `type = "password"` (min. 8 characters, enforced by the core's
+  `PasswordOption`) rather than a plain string.

@@ -7,8 +7,17 @@ des notes, des analyses et des podcasts.
 L'accès est contrôlé par YunoHost : seuls les membres du groupe autorisé sur la
 permission de l'application peuvent y accéder. De plus, l'API d'open-notebook est
 protégée par un **mot de passe d'application** partagé (également utilisé pour se
-connecter à l'interface web). Vous pouvez consulter ou modifier ce mot de passe
-depuis le **panneau de configuration** de l'application.
+connecter à l'interface web).
+
+Le mot de passe d'application actuel est :
+
+    __OPEN_NOTEBOOK_PASSWORD__
+
+open-notebook n'a pas de comptes propres : le nom d'utilisateur n'est pas
+vérifié. Modifiez le mot de passe depuis l'onglet **Configuration** de
+l'application dans l'interface d'administration YunoHost (la valeur y est
+masquée : la copie lisible est celle ci-dessus). Les utilisateurs en ont besoin
+pour se connecter à l'application, en plus de leur compte YunoHost.
 
 Les deux couches sont indépendantes : si vous autorisez les **visiteurs** sur la
 permission de l'application, YunoHost cesse de protéger l'URL et seul le mot de

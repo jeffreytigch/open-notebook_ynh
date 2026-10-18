@@ -67,6 +67,7 @@ ynh_restore "/etc/fail2ban/filter.d/$app.conf"
 # Everything is re-rendered from the settings anyway.
 open_notebook_configure
 open_notebook_register_services
+open_notebook_set_logo
 
 #=================================================
 # START SERVICES

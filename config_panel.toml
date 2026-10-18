@@ -15,7 +15,7 @@ name = "open-notebook"
         [main.application.open_notebook_password]
         ask = "Application password"
         type = "password"
-        help = "The shared password required by the open-notebook API, in addition to the YunoHost access control. Update it here if you change it in the app."
+        help = "The shared password required by the open-notebook API, in addition to the YunoHost access control. Masked here: the current value is readable on the app's Documentation tab. Changing it logs nobody in or out, it only takes effect for the next login."
 
         [main.application.max_upload_size]
         ask = "Maximum upload size (MB)"

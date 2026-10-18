@@ -49,6 +49,7 @@ open_notebook_build_frontend
 
 ynh_script_progression "Configuring open-notebook..."
 open_notebook_configure
+open_notebook_set_logo
 
 #=================================================
 # REGISTER AND START SERVICES
@@ -64,4 +65,11 @@ open_notebook_start_services
 # END OF SCRIPT
 #=================================================
 
+# The generated application password is deliberately not echoed here, so it does
+# not end up in operation logs that people paste into bug reports. YunoHost
+# renders it from the app settings into the post-install notification and into
+# doc/ADMIN.md, so the admin can always read it back.
+ynh_print_info "The application password is shown in the post-install notification and, at any time, on the app's Documentation tab (Applications > $app > Documentation). It can be changed from the Configuration tab."
+
 ynh_script_progression "Installation of $app completed" --last
+
