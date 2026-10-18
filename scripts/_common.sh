@@ -130,6 +130,20 @@ open_notebook_load_settings() {
         # cannot tell that we are exporting the variable *named* by $key.
         export "${key?}"
     done
+
+    # Refuse to render an empty secret.
+    #
+    # _ynh_replace_vars dies when a variable is *undefined*, but an empty one is
+    # substituted silently. An empty OPEN_NOTEBOOK_PASSWORD makes upstream's
+    # PasswordAuthMiddleware disable authentication altogether (a wide-open API),
+    # and an empty SURREAL_PASSWORD or encryption key leaves the app
+    # unusable/broken in a way that is hard to diagnose afterwards. A missing
+    # setting is therefore an install failure, not a warning.
+    for key in encryption_key open_notebook_password surreal_password; do
+        if [[ -z "${!key}" ]]; then
+            ynh_die "The '$key' setting is empty, so $install_dir/.env cannot be rendered correctly. Re-install the app, or give the value in its Configuration panel."
+        fi
+    done
 }
 
 # Render the .env file, the systemd units, the nginx configuration and logrotate.
@@ -139,6 +153,21 @@ open_notebook_configure() {
     ynh_config_add --template=".env" --destination="$install_dir/.env"
     chmod 600 "$install_dir/.env"
     chown "$app:$app" "$install_dir/.env"
+
+    # Read the secrets back out of the rendered file.
+    #
+    # _ynh_replace_vars dies on an *undefined* variable but substitutes an empty
+    # one silently, and the services read .env exactly once, at startup: a
+    # mis-rendered secret therefore yields an instance that looks perfectly
+    # healthy (nginx 200, services active) but rejects every login. Compare the
+    # rendered values with the settings instead of trusting the render.
+    local rendered_password rendered_key
+    rendered_password="$(sed -n 's/^OPEN_NOTEBOOK_PASSWORD=//p' "$install_dir/.env")"
+    rendered_key="$(sed -n 's/^OPEN_NOTEBOOK_ENCRYPTION_KEY=//p' "$install_dir/.env")"
+    if [[ "$rendered_password" != "$open_notebook_password" ]] \
+        || [[ "$rendered_key" != "$encryption_key" ]]; then
+        ynh_die "$install_dir/.env does not contain the secrets held in the app settings: the generated file and the settings store are out of sync. This is a packaging bug, please report it with the install log."
+    fi
 
     ynh_config_add_systemd --template="systemd-surreal.service" --service="$app-surreal"
     ynh_config_add_systemd --template="systemd-api.service" --service="$app-api"
@@ -259,6 +288,40 @@ open_notebook_start_services() {
     # Any HTTP reply (even a 401) proves the port is serving.
     curl --silent --output /dev/null --retry 30 --retry-delay 1 --retry-connrefused \
         "http://127.0.0.1:$port_api/api/config" || true
+
+    # The probe above only proves that the port answers. This one proves that the
+    # password held in the settings is the one the running API expects.
+    open_notebook_verify_api_auth
+}
+
+# Check that the running API accepts the application password.
+#
+# The shared password is open-notebook's only credential and api/auth.py reads it
+# from the environment once, at startup. If .env and the settings store ever
+# disagree — a mis-rendered template, or a service that started before the file
+# was written — the instance looks healthy while refusing every login, and the
+# user has no way to tell that from a typo. So probe a PROTECTED route: a 401
+# while the API is otherwise answering is a definitive failure. (/api/config is
+# public and replies 200 whatever the password is, so it proves nothing.)
+open_notebook_verify_api_auth() {
+    local password="${open_notebook_password:-$(ynh_app_setting_get --key=open_notebook_password)}"
+    local code
+    code="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+        --retry 15 --retry-delay 1 --retry-connrefused \
+        --header "Authorization: Bearer $password" \
+        "http://127.0.0.1:$port_api/api/notebooks")" || true
+
+    # A 401/403 is the definitive failure; anything else (000 when the API did
+    # not answer in time, a 5xx while the database is still warming up) is
+    # inconclusive and must not fail an otherwise good installation.
+    if [[ "$code" == "200" ]]; then
+        return
+    fi
+    if [[ "$code" != "401" && "$code" != "403" ]]; then
+        ynh_print_warn "Could not confirm that the API accepts the application password (HTTP ${code:-000} on /api/notebooks). If the login is refused, set a new password in the app's Configuration panel."
+        return
+    fi
+    ynh_die "The open-notebook API just refused its own application password (HTTP $code on /api/notebooks), so no login can succeed: the running service and the app settings are out of sync. Re-run the installation, or set a new password in the app's Configuration panel."
 }
 
 open_notebook_stop_services() {

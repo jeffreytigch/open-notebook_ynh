@@ -371,3 +371,56 @@ already interpolates into `doc/`, and stop pointing at the config panel:
   so the panel must never be allowed to store an empty value; the option stays
   `type = "password"` (min. 8 characters, enforced by the core's
   `PasswordOption`) rather than a plain string.
+
+## ADR-011 — Refuse to run when the rendered environment disagrees with the settings
+
+**Context.** The four services read `<install_dir>/.env` exactly once, at startup,
+and two secrets live only there: the API's shared password and
+`OPEN_NOTEBOOK_ENCRYPTION_KEY` (which decrypts the stored provider credentials
+and database password). The file is produced by `ynh_config_add` from
+`conf/.env`, whose `__FOO__` tokens are replaced by the value of the shell
+variable `$foo`. That replacement has an asymmetric failure mode: an
+*undefined* variable aborts the render (`_ynh_replace_vars` →
+`Variable $foo wasn't initialized`), but an *empty* one is substituted silently.
+An empty `OPEN_NOTEBOOK_PASSWORD`, for instance, makes upstream's
+`PasswordAuthMiddleware` (`api/auth.py`) **disable authentication altogether** —
+a wide-open API — while the install reports success and every page answers 200.
+A user-reported defect (native-proof item 12: the password they read did not let
+them log in) showed how hard that class of failure is to diagnose from the
+outside, because the running service, the rendered file and the settings store
+can only be compared by hand.
+
+**Decision.** Verify the render instead of trusting it, in the shared helper so
+that install, upgrade, restore and every config-panel change get the same
+treatment:
+
+1. `open_notebook_load_settings()` aborts when `encryption_key`,
+   `open_notebook_password` or `surreal_password` is empty — before anything is
+   written.
+2. `open_notebook_configure()` reads `OPEN_NOTEBOOK_PASSWORD=` and
+   `OPEN_NOTEBOOK_ENCRYPTION_KEY=` back out of the file it just rendered and
+   compares them with the settings; a difference aborts the operation.
+3. `open_notebook_verify_api_auth()`, called from
+   `open_notebook_start_services()`, asks the *running* API to authenticate with
+   the stored password. `401`/`403` on the **protected** `/api/notebooks` route
+   is definitive and aborts; any other outcome (`000` when the API is still
+   starting, `5xx` while the database warms up) only warns, so a slow first
+   start can never fail an otherwise good installation.
+
+**Alternatives rejected.**
+- *Echoing the password into the operation log* so the admin can always see it:
+  operation logs are pasted into bug reports wholesale.
+- *Trusting the template render*: `ynh_die` on undefined variables was already
+  there, yet the empty-value case slips through by design.
+- *Repairing silently* (e.g. regenerating the password when the comparison
+  fails): it would hide a packaging bug and could lock out an existing browser
+  session instead of reporting the problem.
+
+**Consequences.**
+- An instance that cannot authenticate its own password now fails loudly, with a
+  message naming the file, the setting and the remedy, instead of a healthy-
+  looking deployment that rejects every login.
+- The check costs one local HTTP request per service start, and `/api/config` is
+  explicitly **not** used for it: that route is public by design (it answers 200
+  whatever the credential is), so it proves nothing about authentication.
+

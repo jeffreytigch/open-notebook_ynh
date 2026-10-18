@@ -17,6 +17,12 @@ the password from the app's **Configuration** tab in the YunoHost admin interfac
 (the value is masked there: the field above is the readable copy). Users need it
 to log in to the app itself, on top of their YunoHost account.
 
+Every install, upgrade, restore and configuration change checks that the
+password stored in the settings is the one the running service accepts. If the
+two ever disagree, the operation stops with an explanatory message instead of
+leaving an application that refuses every login; setting a new password from the
+**Configuration** tab repairs such an instance.
+
 The two layers are independent: if you allow **visitors** on the app's
 permission, YunoHost stops gating the URL and only the application password
 protects the app; if you restrict the permission to a group, both apply.

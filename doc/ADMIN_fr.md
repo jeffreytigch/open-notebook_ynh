@@ -19,6 +19,13 @@ l'application dans l'interface d'administration YunoHost (la valeur y est
 masquée : la copie lisible est celle ci-dessus). Les utilisateurs en ont besoin
 pour se connecter à l'application, en plus de leur compte YunoHost.
 
+Chaque installation, mise à jour, restauration et modification de configuration
+vérifie que le mot de passe enregistré est bien celui qu'accepte le service en
+cours d'exécution. Si les deux divergent un jour, l'opération s'arrête avec un
+message explicatif plutôt que de laisser une application qui refuse toute
+connexion ; définir un nouveau mot de passe depuis l'onglet **Configuration**
+répare une telle instance.
+
 Les deux couches sont indépendantes : si vous autorisez les **visiteurs** sur la
 permission de l'application, YunoHost cesse de protéger l'URL et seul le mot de
 passe d'application protège l'application ; si vous restreignez la permission à

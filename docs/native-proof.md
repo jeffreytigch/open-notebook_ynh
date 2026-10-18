@@ -582,3 +582,82 @@ What *is* verified for amd64:
     `manifest.notifications.POST_INSTALL.main.en`. `scripts/install` prints where
     to find it but never echoes the secret into the operation log, and the
     panel's `help` states that the field is masked (see ADR-010).
+13. **A rendered environment that silently disagrees with the settings** (the
+    mechanism behind report #12, hardened rather than assumed fixed). Reading
+    the helpers rather than trusting them settled the failure mode:
+    `_ynh_replace_vars()` dies on an *undefined* variable
+    (`Variable $foo wasn't initialized`), so a leftover `__TOKEN__` cannot
+    survive a render — but a variable that is *defined and empty* is
+    substituted **silently**. An empty `OPEN_NOTEBOOK_PASSWORD` therefore
+    reaches the API, where `PasswordAuthMiddleware` treats it as "no password
+    configured" and disables authentication altogether, while the install
+    reports success and every page answers `200`. Three guards now make that
+    class of failure impossible to ship (ADR-011):
+
+    1. `open_notebook_load_settings()` refuses to continue when
+       `encryption_key`, `open_notebook_password` or `surreal_password` is
+       empty, before anything is written.
+    2. `open_notebook_configure()` reads `OPEN_NOTEBOOK_PASSWORD=` and
+       `OPEN_NOTEBOOK_ENCRYPTION_KEY=` back out of the file it just rendered
+       and compares them with the settings.
+    3. `open_notebook_verify_api_auth()` (called by
+       `open_notebook_start_services()`) authenticates against the **protected**
+       `/api/notebooks` route with the stored password: `401`/`403` aborts,
+       anything else (`000` while starting, `5xx` while the database warms up)
+       only warns, so a slow first start cannot fail a good install.
+       `/api/config` is deliberately public and is never used for this.
+
+    Verified on `open-notebook__3`, a fresh install of the patched tree from
+    `/root/open-notebook_ynh_fix` (`INSTALL_EXIT=0`, four units `active` +
+    `enabled`, no guard message in the log):
+
+    ```
+    == the settings and the rendered .env ==
+    setting=u2bixRa4IJHoklcnZmV5z6D0FJw63NzJ
+    .env   =u2bixRa4IJHoklcnZmV5z6D0FJw63NzJ
+    PASS  the setting and .env agree
+
+    == 1. auth self-check with the stored password ==
+    PASS  the API accepts the stored password
+    == 2. auth self-check with a wrong password ==
+    The open-notebook API just refused its own application password (HTTP 401 on
+    /api/notebooks), so no login can succeed: the running service and the app
+    settings are out of sync. ...[ynh_die]
+    PASS  the check refused the wrong password (expected)
+    == 3. the public route the check must NOT use ==
+      /api/config without any credential -> HTTP 200 (public, so it proves nothing)
+    == 4. empty-secret guard ==
+    The 'open_notebook_password' setting is empty, so /var/www/open-notebook__3/.env
+    cannot be rendered correctly. ...[ynh_die]
+    PASS  an empty open_notebook_password was refused (expected)
+    ```
+
+    Guard 2 was also exercised negatively through the *real* config-panel path
+    (`yunohost app config set open-notebook__3 main.ingestion.chunk_size -v 401`
+    with the installed `_common.sh` deliberately broken):
+
+    ```
+    INFO [###############+++++] > Applying the new configuration...
+    WARNING /var/www/open-notebook__3/.env does not contain the secrets held in the
+    app settings: the generated file and the settings store are out of sync. ...
+    ERROR Failed to apply config panel values.      (exit status 1)
+    ```
+
+    …and the unpatched file restored afterwards behaves again:
+    `yunohost app config set … chunk_size -v 400` → `exit=0`,
+    `SUCCESS Config updated as expected`, the setting and
+    `OPEN_NOTEBOOK_CHUNK_SIZE=` in `.env` both `400`, four units `active`, and
+    `curl -H "Authorization: Bearer <setting>" …/api/notebooks` → `200`.
+
+    Finally, the exact request the **browser's login form** makes
+    (`frontend/src/lib/stores/auth-store.ts`: a raw `fetch` of
+    `${apiUrl}/api/notebooks` with `Authorization: Bearer <password>`) was
+    replayed through nginx on the new instance:
+
+    ```
+    GET /notebook3/                                308  (basePath, ADR-008)
+    GET /notebook3/login                           200
+    GET /notebook3/api/notebooks  Bearer <setting> 200
+    GET /notebook3/api/notebooks  no Bearer        401
+    ```
+
